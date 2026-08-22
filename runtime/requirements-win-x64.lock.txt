@@ -1,6 +1,6 @@
-# 平台专用、完整传递依赖 wheel 锁。
-# 目标：Windows x64 / CPython 3.9；由 uv 0.12.5 解析，并经 pip download 显式平台选择验证。
-# 每个条目只保留构建实际选中的 wheel SHA-256；安装必须使用 --require-hashes --only-binary=:all:。
+# Windows x64 / CPython 3.9: full transitive-dependency wheel lock.
+# Resolved by uv 0.12.5; verified via pip download with explicit platform selection.
+# Each entry pins the exact wheel SHA-256 chosen at build time; install with --require-hashes --only-binary=:all:.
 argon2-cffi==25.1.0 --hash=sha256:fdc8b074db390fccb6eb4a3604ae7231f219aa669a2652e0f20e16ba513d5741
 argon2-cffi-bindings==25.1.0 --hash=sha256:a98cd7d17e9f7ce244c0803cad3c23a7d379c301ba618a5fa76a67d116618b98
 asttokens==3.0.2 --hash=sha256:9da13157f5b28becde0bd374fc677dcd3c290614264eff096f167c469cd9f933

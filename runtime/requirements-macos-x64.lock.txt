@@ -1,6 +1,6 @@
-# 平台专用、完整传递依赖 wheel 锁。
-# 目标：macOS 12 x86_64 / CPython 3.9；由 uv 0.12.5 解析，并经 pip download 显式平台选择验证。
-# 每个条目只保留构建实际选中的 wheel SHA-256；安装必须使用 --require-hashes --only-binary=:all:。
+# macOS 12 x86_64 / CPython 3.9: full transitive-dependency wheel lock.
+# Resolved by uv 0.12.5; verified via pip download with explicit platform selection.
+# Each entry pins the exact wheel SHA-256 chosen at build time; install with --require-hashes --only-binary=:all:.
 appnope==0.1.4 --hash=sha256:502575ee11cd7a28c0205f379b525beefebab9d161b7c964670864014ed7213c
 argon2-cffi==25.1.0 --hash=sha256:fdc8b074db390fccb6eb4a3604ae7231f219aa669a2652e0f20e16ba513d5741
 argon2-cffi-bindings==25.1.0 --hash=sha256:2630b6240b495dfab90aebe159ff784d08ea999aa4b0d17efa734055a07d2f44

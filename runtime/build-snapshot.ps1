@@ -8,6 +8,10 @@ param(
 )
 $ErrorActionPreference = "Stop"
 
+# 强制 UTF-8：Windows 运行器默认按系统区域编码（cp1252/cp936）解码文本，
+# 会让 pip 解析 requirements 等文件时 UnicodeDecodeError；构建期统一 UTF-8。
+$env:PYTHONUTF8 = "1"
+
 $Mirror = "https://mirrors.aliyun.com/pypi/simple/"
 $BootstrapVersion = "3.13.5"
 $PbsTag = "20211017"
