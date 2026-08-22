@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">A - Great Red Spot</title>
+  <desc id="desc">A compact Jupiter mark with broad atmospheric bands and a red spot.</desc>
+  <defs>
+    <linearGradient id="tile" x1="160" y1="120" x2="864" y2="916" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#272A31"/>
+      <stop offset="1" stop-color="#111318"/>
+    </linearGradient>
+    <radialGradient id="planet" cx="38%" cy="28%" r="76%">
+      <stop stop-color="#FFF0D2"/>
+      <stop offset="1" stop-color="#F0C985"/>
+    </radialGradient>
+    <clipPath id="planet-clip">
+      <circle cx="512" cy="512" r="300"/>
+    </clipPath>
+    <filter id="planet-shadow" x="130" y="140" width="764" height="780" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="28" stdDeviation="24" flood-color="#000" flood-opacity=".3"/>
+    </filter>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="208" fill="url(#tile)"/>
+  <g filter="url(#planet-shadow)">
+    <circle cx="512" cy="512" r="300" fill="url(#planet)"/>
+    <g clip-path="url(#planet-clip)">
+      <path d="M164 360c122 52 238 61 348 26 117-37 232-28 348 28" fill="none" stroke="#D78355" stroke-width="80" stroke-linecap="round"/>
+      <path d="M155 487c143-38 274-34 393 13 98 39 206 42 324 8" fill="none" stroke="#FFF4DC" stroke-width="66" stroke-linecap="round"/>
+      <path d="M154 612c128 39 252 40 371 1 109-36 225-34 348 5" fill="none" stroke="#C96D4E" stroke-width="74" stroke-linecap="round"/>
+      <path d="M188 724c110-29 213-21 310 23 103 47 213 46 329-3" fill="none" stroke="#F8E4BC" stroke-width="62" stroke-linecap="round"/>
+      <ellipse cx="656" cy="573" rx="91" ry="55" fill="#D94B3A" transform="rotate(-7 656 573)"/>
+      <ellipse cx="638" cy="557" rx="42" ry="18" fill="#F38565" opacity=".72" transform="rotate(-7 638 557)"/>
+    </g>
+    <circle cx="512" cy="512" r="300" fill="none" stroke="#FFF" stroke-opacity=".24" stroke-width="10"/>
+  </g>
+</svg>

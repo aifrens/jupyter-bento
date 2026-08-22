@@ -1,0 +1,18 @@
+# macOS Apple Silicon：4 个包取 arm64 最低可用版本（已核实 PyPI，其余与原始清单一致）
+#   pandas 1.3.4 → 1.4.0 / scipy 1.7.1 → 1.7.3 / matplotlib 3.4.3 → 3.5.0 / scikit-learn 0.24.2 → 1.0.2
+pandas==1.4.0
+numpy==1.22.4
+scipy==1.7.3
+matplotlib==3.5.0
+seaborn==0.11.2
+openpyxl==3.0.9
+xlrd==2.0.1
+Pillow==8.4.0
+opencv-python==4.10.0.84
+scikit-learn==1.0.2
+xgboost==2.1.1
+imbalanced-learn==0.8.1
+onnxruntime==1.12.1
+notebook==6.4.8
+traitlets==5.1.1
+matplotlib-inline==0.1.3

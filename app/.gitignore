@@ -1,0 +1,9 @@
+node_modules/
+ui/styles.css
+dist-ui/
+src-tauri/target/
+src-tauri/resources/*
+!src-tauri/resources/jupiter_recent_handler/
+!src-tauri/resources/jupiter_recent_handler/__init__.py
+!src-tauri/resources/jupiter_recent_handler/handlers.py
+src-tauri/gen/

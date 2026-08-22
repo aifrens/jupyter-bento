@@ -1,0 +1,9 @@
+# python-build-standalone release 20211017 assets used by build-snapshot scripts.
+# Source: https://github.com/astral-sh/python-build-standalone/releases/tag/20211017
+# GitHub does not expose digests for this old release. These values were computed
+# from the release asset bytes; the byte sizes are 32619815, 32736015, 33853602,
+# and 50496545 respectively, matching the GitHub release asset metadata.
+d75cfebb74df7c5195970e4ea77466e16cc0057ffd9c8442477b941b517f1639  cpython-3.9.7-aarch64-apple-darwin-pgo+lto-20211017T1616.tar.zst
+12c5bce1b48d2b896049ec2524648d5429eba982539bc571d43c1a2ec3997630  cpython-3.9.7-x86_64-apple-darwin-pgo+lto-20211017T1616.tar.zst
+634a4ed5a05c1bc9f158954bc4849de69d6b7c2c42d9483a875006f33eb0f17c  cpython-3.9.7-x86_64-pc-windows-msvc-shared-pgo-20211017T1616.tar.zst
+33cb6a4895418b9de2b770f8ab72d1fd2dbebb95747a81f6d1824c1900062df8  cpython-3.9.7-x86_64-unknown-linux-gnu-pgo+lto-20211017T1616.tar.zst

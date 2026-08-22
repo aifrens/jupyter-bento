@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>朱比特和它的朋友们 · 产品原型</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        brand: { DEFAULT: '#F37626', dark: '#D85F14', light: '#FFF1E8' },
+        ink: '#1E2632'
+      }
+    }
+  }
+}
+</script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; }
+  .nav-item { transition: all .15s; }
+  .nav-item:hover { background: rgba(255,255,255,.06); color: #fff; }
+  .nav-item.active { background: rgba(243,118,38,.15); box-shadow: inset 3px 0 0 #F37626; color: #fff; }
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
+  .proto-btn.active { background: #F37626; color: #fff; border-color: #F37626; }
+  @keyframes progress { from { width: 12%; } to { width: 88%; } }
+  .anim-progress { animation: progress 3s ease-in-out forwards; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  .fadein { animation: fadein .3s ease both; }
+</style>
+</head>
+<body class="bg-slate-200 min-h-screen">
+
+<!-- ===================== 原型评审工具条 ===================== -->
+<header class="sticky top-0 z-50 bg-ink text-white shadow-lg">
+  <div class="max-w-[1020px] mx-auto px-4 py-3">
+    <div class="flex items-center justify-between">
+      <div class="font-bold">朱比特和它的朋友们 <span class="text-slate-400 font-normal text-sm ml-2">产品原型 · 交互稿 v0.2</span></div>
+      <div class="text-xs text-slate-400">Windows 版界面内容一致，仅窗口框架样式不同</div>
+    </div>
+    <nav id="protoNav" class="flex flex-wrap gap-2 mt-3">
+      <button data-view="first"      class="proto-btn text-xs px-3 py-1.5 rounded-full border border-slate-500">① 首次启动·初始化</button>
+      <button data-view="home"       class="proto-btn text-xs px-3 py-1.5 rounded-full border border-slate-500">② 首页·未启动</button>
+      <button data-view="home-run"   class="proto-btn text-xs px-3 py-1.5 rounded-full border border-slate-500">③ 首页·运行中</button>
+      <button data-view="env"        class="proto-btn text-xs px-3 py-1.5 rounded-full border border-slate-500">④ 环境管理</button>
+      <button data-view="install"    class="proto-btn text-xs px-3 py-1.5 rounded-full border border-slate-500">⑤ 安装新包</button>
+      <button data-view="installing" class="proto-btn text-xs px-3 py-1.5 rounded-full border border-slate-500">⑥ 安装过程</button>
+      <button data-view="settings"   class="proto-btn text-xs px-3 py-1.5 rounded-full border border-slate-500">⑦ 设置·重置入口</button>
+      <button data-view="reset"      class="proto-btn text-xs px-3 py-1.5 rounded-full border border-slate-500">⑧ 重置确认</button>
+    </nav>
+    <p id="viewDesc" class="text-xs text-brand-light mt-2 text-slate-300"></p>
+  </div>
+</header>
+
+<!-- ===================== 应用窗口 ===================== -->
+<div class="flex justify-center py-10 px-4">
+  <div class="w-[980px] rounded-xl overflow-hidden shadow-2xl border border-slate-300 bg-white select-none">
+
+    <!-- macOS 风格标题栏 -->
+    <div class="h-10 bg-slate-100 flex items-center px-4 relative border-b border-slate-200">
+      <div class="flex gap-2">
+        <span class="w-3 h-3 rounded-full bg-[#FF5F57]"></span>
+        <span class="w-3 h-3 rounded-full bg-[#FEBC2E]"></span>
+        <span class="w-3 h-3 rounded-full bg-[#28C840]"></span>
+      </div>
+      <div class="absolute inset-0 flex items-center justify-center text-xs font-medium text-slate-500">朱比特和它的朋友们 — Jupyter Notebook 桌面版</div>
+    </div>
+
+    <!-- 窗口主体 -->
+    <div class="relative flex h-[620px]">
+
+      <!-- ========= 侧边栏 ========= -->
+      <aside class="w-52 shrink-0 bg-ink text-slate-400 flex flex-col">
+        <div class="flex items-center gap-2.5 px-5 h-16">
+          <div class="w-9 h-9 rounded-lg bg-brand flex items-center justify-center shadow">
+            <svg viewBox="0 0 24 24" class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><circle cx="13" cy="9" r="2.2"/>
+            </svg>
+          </div>
+          <div>
+            <div class="text-white font-bold leading-tight">朱比特</div>
+            <div class="text-[10px] text-slate-500 leading-tight">和它的朋友们 · 开箱即用</div>
+          </div>
+        </div>
+
+        <nav class="mt-2 space-y-1 px-2">
+          <a class="nav-item flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm cursor-pointer" data-screen="home" onclick="showScreen('home')">
+            <svg viewBox="0 0 24 24" class="w-4.5 h-4.5 w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.25 12l8.954-8.955a1.126 1.126 0 011.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75"/></svg>
+            首页
+          </a>
+          <a class="nav-item flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm cursor-pointer" data-screen="env" onclick="showScreen('env')">
+            <svg viewBox="0 0 24 24" class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9"/></svg>
+            环境管理
+          </a>
+          <a class="nav-item flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm cursor-pointer" data-screen="settings" onclick="showScreen('settings')">
+            <svg viewBox="0 0 24 24" class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75"/></svg>
+            设置
+          </a>
+        </nav>
+
+        <div class="mt-auto px-5 pb-5">
+          <div class="rounded-xl bg-white/5 p-3.5">
+            <div class="flex items-center gap-2 text-xs">
+              <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+              <span class="text-slate-300">环境状态：正常</span>
+            </div>
+            <div class="text-[10px] text-slate-500 mt-1.5 leading-relaxed">内置 Python 3.9.7<br>与系统环境完全隔离</div>
+          </div>
+          <div class="text-[10px] text-slate-600 mt-3">v1.0.0</div>
+        </div>
+      </aside>
+
+      <!-- ========= 主内容区 ========= -->
+      <main class="flex-1 relative bg-slate-50 overflow-hidden">
+
+        <!-- ① 首次启动·初始化 -->
+        <section id="s-first" class="screen hidden absolute inset-0 bg-white flex-col items-center justify-center flex">
+          <div class="w-20 h-20 rounded-2xl bg-brand flex items-center justify-center shadow-lg shadow-orange-200">
+            <svg viewBox="0 0 24 24" class="w-11 h-11 text-white" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><circle cx="13" cy="9" r="2.2"/>
+            </svg>
+          </div>
+          <h1 class="text-2xl font-bold mt-6 text-slate-800">欢迎使用 朱比特和它的朋友们</h1>
+          <p class="text-slate-500 mt-2 text-sm">首次启动，正在为您准备运行环境…</p>
+          <div class="w-80 mt-8">
+            <div class="h-2 rounded-full bg-slate-100 overflow-hidden">
+              <div class="h-full w-[45%] rounded-full bg-brand anim-progress"></div>
+            </div>
+            <div class="flex justify-between text-xs text-slate-400 mt-2">
+              <span>正在解压内置 Python 3.9.7 环境…</span><span>45%</span>
+            </div>
+          </div>
+          <p class="text-xs text-slate-400 mt-6">此过程仅需一次，约 1～2 分钟，请勿关闭应用</p>
+        </section>
+
+        <!-- ② 首页·未启动 -->
+        <section id="s-home" class="screen hidden absolute inset-0 overflow-y-auto p-8">
+          <h1 class="text-[22px] font-bold text-slate-800">欢迎使用 朱比特和它的朋友们 👋</h1>
+          <p class="text-sm text-slate-500 mt-1">无需安装 Python、无需配置环境，一键开始使用 Jupyter Notebook。</p>
+
+          <!-- 服务状态卡片 -->
+          <div class="mt-6 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex items-center gap-5">
+            <div class="w-14 h-14 rounded-2xl bg-brand-light flex items-center justify-center">
+              <svg viewBox="0 0 24 24" class="w-8 h-8 text-brand" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><circle cx="13" cy="9" r="2.2"/></svg>
+            </div>
+            <div class="flex-1">
+              <div class="font-semibold text-slate-800 flex items-center gap-2.5">
+                Jupyter Notebook 服务
+                <span class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>未运行</span>
+              </div>
+              <p class="text-[13px] text-slate-500 mt-1.5">点击启动后，将自动在您的默认浏览器中打开 Jupyter Notebook。</p>
+            </div>
+            <button onclick="showScreen('home-run')" class="shrink-0 bg-brand hover:bg-brand-dark text-white px-6 py-3 rounded-xl font-semibold text-sm shadow-md shadow-orange-200 transition">
+              ▶&nbsp; 启动 Notebook
+            </button>
+          </div>
+
+          <!-- 工作目录 -->
+          <div class="mt-4 bg-white rounded-2xl border border-slate-200 p-5 flex items-center gap-4">
+            <div class="w-10 h-10 rounded-xl bg-sky-50 flex items-center justify-center text-sky-500">
+              <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z"/></svg>
+            </div>
+            <div class="flex-1">
+              <div class="text-sm font-medium text-slate-700">工作目录</div>
+              <div class="text-[13px] text-slate-400 font-mono mt-0.5">/Users/zhangsan/Jupiter/notebooks</div>
+            </div>
+            <button class="text-sm border border-slate-200 rounded-lg px-3.5 py-1.5 text-slate-600 hover:bg-slate-50">更改…</button>
+          </div>
+          <p class="text-xs text-slate-400 mt-2 ml-1">您的 .ipynb 笔记文件都保存在此目录中，重置环境不会影响这些文件。</p>
+
+          <!-- 最近文件 -->
+          <h2 class="mt-7 text-sm font-semibold text-slate-700">最近打开</h2>
+          <div class="mt-2.5 bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100">
+            <div class="flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50 cursor-pointer">
+              <span class="text-brand">📓</span><span class="text-sm text-slate-700 flex-1">数据分析示例.ipynb</span><span class="text-xs text-slate-400">2 小时前</span>
+            </div>
+            <div class="flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50 cursor-pointer">
+              <span class="text-brand">📓</span><span class="text-sm text-slate-700 flex-1">机器学习练习.ipynb</span><span class="text-xs text-slate-400">昨天</span>
+            </div>
+            <div class="flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50 cursor-pointer">
+              <span class="text-brand">📓</span><span class="text-sm text-slate-700 flex-1">销售报表汇总.ipynb</span><span class="text-xs text-slate-400">3 天前</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- ③ 首页·运行中 -->
+        <section id="s-home-run" class="screen hidden absolute inset-0 overflow-y-auto p-8">
+          <h1 class="text-[22px] font-bold text-slate-800">欢迎使用 朱比特和它的朋友们 👋</h1>
+          <p class="text-sm text-slate-500 mt-1">无需安装 Python、无需配置环境，一键开始使用 Jupyter Notebook。</p>
+
+          <div class="mt-6 bg-white rounded-2xl border-2 border-emerald-200 shadow-sm p-6 flex items-center gap-5">
+            <div class="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center">
+              <svg viewBox="0 0 24 24" class="w-8 h-8 text-emerald-500" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><circle cx="13" cy="9" r="2.2"/></svg>
+            </div>
+            <div class="flex-1">
+              <div class="font-semibold text-slate-800 flex items-center gap-2.5">
+                Jupyter Notebook 服务
+                <span class="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>运行中</span>
+              </div>
+              <div class="flex items-center gap-2 mt-1.5">
+                <code class="text-[13px] text-slate-500 bg-slate-100 rounded px-2 py-0.5">http://localhost:8888</code>
+                <button class="text-xs text-slate-400 hover:text-slate-600 underline">复制</button>
+              </div>
+            </div>
+            <div class="shrink-0 flex flex-col gap-2">
+              <button class="bg-brand hover:bg-brand-dark text-white px-5 py-2.5 rounded-xl font-semibold text-sm shadow-md shadow-orange-200 transition">在浏览器中打开</button>
+              <button onclick="showScreen('home')" class="border border-slate-200 text-slate-500 px-5 py-2 rounded-xl text-sm hover:bg-slate-50">停止服务</button>
+            </div>
+          </div>
+          <p class="text-xs text-slate-400 mt-2 ml-1">浏览器没有自动打开？点击上方按钮手动打开。关闭本窗口不会中断正在运行的服务。</p>
+
+          <div class="mt-4 bg-white rounded-2xl border border-slate-200 p-5 flex items-center gap-4">
+            <div class="w-10 h-10 rounded-xl bg-sky-50 flex items-center justify-center text-sky-500">
+              <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z"/></svg>
+            </div>
+            <div class="flex-1">
+              <div class="text-sm font-medium text-slate-700">工作目录</div>
+              <div class="text-[13px] text-slate-400 font-mono mt-0.5">/Users/zhangsan/Jupiter/notebooks</div>
+            </div>
+            <button class="text-sm border border-slate-200 rounded-lg px-3.5 py-1.5 text-slate-600 hover:bg-slate-50">更改…</button>
+          </div>
+
+          <h2 class="mt-7 text-sm font-semibold text-slate-700">最近打开</h2>
+          <div class="mt-2.5 bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100">
+            <div class="flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50 cursor-pointer">
+              <span class="text-brand">📓</span><span class="text-sm text-slate-700 flex-1">数据分析示例.ipynb</span><span class="text-xs text-slate-400">2 小时前</span>
+            </div>
+            <div class="flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50 cursor-pointer">
+              <span class="text-brand">📓</span><span class="text-sm text-slate-700 flex-1">机器学习练习.ipynb</span><span class="text-xs text-slate-400">昨天</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- ④ 环境管理 -->
+        <section id="s-env" class="screen hidden absolute inset-0 overflow-y-auto p-8">
+          <div class="flex items-start justify-between">
+            <div>
+              <h1 class="text-[22px] font-bold text-slate-800">环境管理</h1>
+              <p class="text-sm text-slate-500 mt-1">应用内置独立 Python 环境，与您系统中的 Python 完全隔离、互不影响。</p>
+            </div>
+            <button onclick="showScreen('install')" class="shrink-0 bg-brand hover:bg-brand-dark text-white px-4.5 px-5 py-2.5 rounded-xl font-semibold text-sm shadow-md shadow-orange-200 transition">＋ 安装新包</button>
+          </div>
+
+          <!-- 统计卡片 -->
+          <div class="grid grid-cols-4 gap-3 mt-5">
+            <div class="bg-white rounded-2xl border border-slate-200 p-4">
+              <div class="text-xs text-slate-400">Python 版本</div>
+              <div class="text-xl font-bold text-slate-800 mt-1">3.9.7</div>
+              <div class="text-[11px] text-slate-400 mt-0.5">内置 · 固定版本</div>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-200 p-4">
+              <div class="text-xs text-slate-400">内置依赖包</div>
+              <div class="text-xl font-bold text-slate-800 mt-1">16</div>
+              <div class="text-[11px] text-slate-400 mt-0.5">出厂自带，开箱即用</div>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-200 p-4">
+              <div class="text-xs text-slate-400">用户已安装</div>
+              <div class="text-xl font-bold text-emerald-600 mt-1">2</div>
+              <div class="text-[11px] text-slate-400 mt-0.5">重置环境时将被移除</div>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-200 p-4">
+              <div class="text-xs text-slate-400">环境占用</div>
+              <div class="text-xl font-bold text-slate-800 mt-1">1.1 <span class="text-sm font-medium">GB</span></div>
+              <div class="text-[11px] text-slate-400 mt-0.5">位于应用私有目录</div>
+            </div>
+          </div>
+
+          <!-- 搜索 -->
+          <div class="mt-5 relative">
+            <svg viewBox="0 0 24 24" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input placeholder="搜索已安装的包…" class="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-orange-100">
+          </div>
+
+          <!-- 包列表 -->
+          <div class="mt-3 bg-white rounded-2xl border border-slate-200 overflow-hidden">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-slate-50 text-left text-xs text-slate-400 border-b border-slate-100">
+                  <th class="font-medium px-5 py-3">包名</th>
+                  <th class="font-medium px-3 py-3">版本</th>
+                  <th class="font-medium px-3 py-3">来源</th>
+                  <th class="font-medium px-5 py-3 text-right">操作</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-50">
+                <tr class="hover:bg-slate-50/60"><td class="px-5 py-2.5 font-mono text-[13px] text-slate-700">requests</td><td class="px-3 py-2.5 font-mono text-[13px] text-slate-500">2.31.0</td><td class="px-3 py-2.5"><span class="text-[11px] font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">用户安装</span></td><td class="px-5 py-2.5 text-right"><button class="text-xs text-red-400 hover:text-red-600">卸载</button></td></tr>
+                <tr class="hover:bg-slate-50/60"><td class="px-5 py-2.5 font-mono text-[13px] text-slate-700">beautifulsoup4</td><td class="px-3 py-2.5 font-mono text-[13px] text-slate-500">4.12.2</td><td class="px-3 py-2.5"><span class="text-[11px] font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">用户安装</span></td><td class="px-5 py-2.5 text-right"><button class="text-xs text-red-400 hover:text-red-600">卸载</button></td></tr>
+                <tr class="hover:bg-slate-50/60"><td class="px-5 py-2.5 font-mono text-[13px] text-slate-700">notebook</td><td class="px-3 py-2.5 font-mono text-[13px] text-slate-500">6.4.8</td><td class="px-3 py-2.5"><span class="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">内置</span></td><td class="px-5 py-2.5 text-right text-slate-300 text-xs">—</td></tr>
+                <tr class="hover:bg-slate-50/60"><td class="px-5 py-2.5 font-mono text-[13px] text-slate-700">pandas</td><td class="px-3 py-2.5 font-mono text-[13px] text-slate-500">1.3.4</td><td class="px-3 py-2.5"><span class="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">内置</span></td><td class="px-5 py-2.5 text-right text-slate-300 text-xs">—</td></tr>
+                <tr class="hover:bg-slate-50/60"><td class="px-5 py-2.5 font-mono text-[13px] text-slate-700">numpy</td><td class="px-3 py-2.5 font-mono text-[13px] text-slate-500">1.22.4</td><td class="px-3 py-2.5"><span class="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">内置</span></td><td class="px-5 py-2.5 text-right text-slate-300 text-xs">—</td></tr>
+                <tr class="hover:bg-slate-50/60"><td class="px-5 py-2.5 font-mono text-[13px] text-slate-700">scipy</td><td class="px-3 py-2.5 font-mono text-[13px] text-slate-500">1.7.1</td><td class="px-3 py-2.5"><span class="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">内置</span></td><td class="px-5 py-2.5 text-right text-slate-300 text-xs">—</td></tr>
+                <tr class="hover:bg-slate-50/60"><td class="px-5 py-2.5 font-mono text-[13px] text-slate-700">matplotlib</td><td class="px-3 py-2.5 font-mono text-[13px] text-slate-500">3.4.3</td><td class="px-3 py-2.5"><span class="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">内置</span></td><td class="px-5 py-2.5 text-right text-slate-300 text-xs">—</td></tr>
+                <tr class="hover:bg-slate-50/60"><td class="px-5 py-2.5 font-mono text-[13px] text-slate-700">seaborn</td><td class="px-3 py-2.5 font-mono text-[13px] text-slate-500">0.11.2</td><td class="px-3 py-2.5"><span class="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">内置</span></td><td class="px-5 py-2.5 text-right text-slate-300 text-xs">—</td></tr>
+                <tr class="hover:bg-slate-50/60"><td class="px-5 py-2.5 font-mono text-[13px] text-slate-700">scikit-learn</td><td class="px-3 py-2.5 font-mono text-[13px] text-slate-500">0.24.2</td><td class="px-3 py-2.5"><span class="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">内置</span></td><td class="px-5 py-2.5 text-right text-slate-300 text-xs">—</td></tr>
+                <tr class="hover:bg-slate-50/60"><td class="px-5 py-2.5 font-mono text-[13px] text-slate-700">xgboost</td><td class="px-3 py-2.5 font-mono text-[13px] text-slate-500">2.1.1</td><td class="px-3 py-2.5"><span class="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">内置</span></td><td class="px-5 py-2.5 text-right text-slate-300 text-xs">—</td></tr>
+                <tr class="hover:bg-slate-50/60"><td class="px-5 py-2.5 font-mono text-[13px] text-slate-700">imbalanced-learn</td><td class="px-3 py-2.5 font-mono text-[13px] text-slate-500">0.8.1</td><td class="px-3 py-2.5"><span class="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">内置</span></td><td class="px-5 py-2.5 text-right text-slate-300 text-xs">—</td></tr>
+                <tr class="hover:bg-slate-50/60"><td class="px-5 py-2.5 font-mono text-[13px] text-slate-700">onnxruntime</td><td class="px-3 py-2.5 font-mono text-[13px] text-slate-500">1.12.1</td><td class="px-3 py-2.5"><span class="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">内置</span></td><td class="px-5 py-2.5 text-right text-slate-300 text-xs">—</td></tr>
+                <tr class="hover:bg-slate-50/60"><td class="px-5 py-2.5 font-mono text-[13px] text-slate-700">opencv-python</td><td class="px-3 py-2.5 font-mono text-[13px] text-slate-500">4.10.0.84</td><td class="px-3 py-2.5"><span class="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">内置</span></td><td class="px-5 py-2.5 text-right text-slate-300 text-xs">—</td></tr>
+                <tr class="hover:bg-slate-50/60"><td class="px-5 py-2.5 font-mono text-[13px] text-slate-700">openpyxl</td><td class="px-3 py-2.5 font-mono text-[13px] text-slate-500">3.0.9</td><td class="px-3 py-2.5"><span class="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">内置</span></td><td class="px-5 py-2.5 text-right text-slate-300 text-xs">—</td></tr>
+                <tr class="hover:bg-slate-50/60"><td class="px-5 py-2.5 font-mono text-[13px] text-slate-700">xlrd</td><td class="px-3 py-2.5 font-mono text-[13px] text-slate-500">2.0.1</td><td class="px-3 py-2.5"><span class="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">内置</span></td><td class="px-5 py-2.5 text-right text-slate-300 text-xs">—</td></tr>
+                <tr class="hover:bg-slate-50/60"><td class="px-5 py-2.5 font-mono text-[13px] text-slate-700">Pillow</td><td class="px-3 py-2.5 font-mono text-[13px] text-slate-500">8.4.0</td><td class="px-3 py-2.5"><span class="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">内置</span></td><td class="px-5 py-2.5 text-right text-slate-300 text-xs">—</td></tr>
+                <tr class="hover:bg-slate-50/60"><td class="px-5 py-2.5 font-mono text-[13px] text-slate-700">traitlets</td><td class="px-3 py-2.5 font-mono text-[13px] text-slate-500">5.1.1</td><td class="px-3 py-2.5"><span class="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">内置</span></td><td class="px-5 py-2.5 text-right text-slate-300 text-xs">—</td></tr>
+                <tr class="hover:bg-slate-50/60"><td class="px-5 py-2.5 font-mono text-[13px] text-slate-700">matplotlib-inline</td><td class="px-3 py-2.5 font-mono text-[13px] text-slate-500">0.1.3</td><td class="px-3 py-2.5"><span class="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">内置</span></td><td class="px-5 py-2.5 text-right text-slate-300 text-xs">—</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="text-xs text-slate-400 mt-3 ml-1">共 18 个包（内置 16 · 用户安装 2） · 内置包为出厂固定版本，不可卸载，保证环境稳定。</p>
+        </section>
+
+        <!-- ⑦ 设置 -->
+        <section id="s-settings" class="screen hidden absolute inset-0 overflow-y-auto p-8">
+          <h1 class="text-[22px] font-bold text-slate-800">设置</h1>
+
+          <!-- 默认安装源 -->
+          <div class="mt-5 bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="text-sm font-semibold text-slate-700">默认安装源（PyPI 镜像）</div>
+            <p class="text-xs text-slate-400 mt-1">安装新包时默认使用的下载源，国内推荐使用镜像源，速度更快。</p>
+            <select class="mt-3 w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-700 outline-none focus:border-brand bg-white">
+              <option selected>阿里云镜像（推荐） — https://mirrors.aliyun.com/pypi/simple/</option>
+              <option>清华大学镜像 — https://pypi.tuna.tsinghua.edu.cn/simple</option>
+              <option>PyPI 官方源 — https://pypi.org/simple</option>
+            </select>
+          </div>
+
+          <!-- 关于 -->
+          <div class="mt-4 bg-white rounded-2xl border border-slate-200 p-5">
+            <div class="text-sm font-semibold text-slate-700">关于</div>
+            <div class="mt-3 space-y-1.5 text-[13px] text-slate-500">
+              <div class="flex justify-between"><span>应用版本</span><span class="font-mono">v1.0.0</span></div>
+              <div class="flex justify-between"><span>内置 Python</span><span class="font-mono">3.9.7</span></div>
+              <div class="flex justify-between"><span>Jupyter Notebook</span><span class="font-mono">6.4.8</span></div>
+              <div class="flex justify-between"><span>环境位置</span><span class="font-mono text-xs">~/Library/Application Support/Jupiter/env</span></div>
+            </div>
+          </div>
+
+          <!-- 危险区域 -->
+          <div class="mt-6 rounded-2xl border-2 border-red-200 bg-red-50/60 p-5">
+            <div class="text-sm font-semibold text-red-600">危险操作</div>
+            <div class="mt-3 flex items-center gap-5">
+              <div class="flex-1">
+                <div class="text-sm font-medium text-slate-700">一键重置环境</div>
+                <p class="text-xs text-slate-500 mt-1 leading-relaxed">当环境被改乱、包冲突无法解决时使用。将移除所有后续安装的依赖包，恢复到刚安装时的出厂状态（内置 16 个包）。<span class="text-slate-700 font-medium">您的 notebook 文件不会被删除。</span></p>
+              </div>
+              <button onclick="showScreen('reset')" class="shrink-0 bg-red-500 hover:bg-red-600 text-white px-5 py-2.5 rounded-xl font-semibold text-sm shadow-md shadow-red-200 transition">重置环境…</button>
+            </div>
+          </div>
+        </section>
+
+      </main>
+
+      <!-- ===================== 弹窗层（覆盖整个窗口主体，模态） ===================== -->
+
+      <!-- ⑤ 安装新包 -->
+      <div id="o-install" class="overlay hidden absolute inset-0 z-40">
+        <div class="absolute inset-0 bg-black/40"></div>
+        <div class="relative z-10 h-full flex items-center justify-center">
+          <div class="w-[460px] bg-white rounded-2xl shadow-2xl p-6 fadein">
+            <h3 class="text-lg font-bold text-slate-800">安装新的 Python 包</h3>
+            <p class="text-xs text-slate-400 mt-1">包将被安装到应用内置环境中，不影响您的系统。</p>
+
+            <label class="block text-[13px] font-medium text-slate-600 mt-5 mb-1.5">包名 <span class="text-red-400">*</span></label>
+            <input value="requests" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-mono outline-none focus:border-brand focus:ring-2 focus:ring-orange-100" placeholder="例如：requests">
+
+            <label class="block text-[13px] font-medium text-slate-600 mt-4 mb-1.5">版本 <span class="text-slate-400 font-normal">（可选）</span></label>
+            <input value="2.31.0" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-mono outline-none focus:border-brand focus:ring-2 focus:ring-orange-100" placeholder="例如：2.31.0，留空则安装最新版">
+
+            <label class="block text-[13px] font-medium text-slate-600 mt-4 mb-1.5">安装源</label>
+            <div class="space-y-2">
+              <label class="flex items-start gap-2.5 border border-brand bg-brand-light rounded-xl px-3.5 py-2.5 cursor-pointer">
+                <input type="radio" name="mirror" checked class="mt-0.5 accent-orange-500">
+                <span class="text-[13px]"><span class="font-medium text-slate-700">阿里云镜像</span><span class="text-xs text-emerald-600 ml-1.5">默认 · 推荐</span><br><span class="text-xs text-slate-400 font-mono">https://mirrors.aliyun.com/pypi/simple/</span></span>
+              </label>
+              <label class="flex items-start gap-2.5 border border-slate-200 rounded-xl px-3.5 py-2.5 cursor-pointer hover:bg-slate-50">
+                <input type="radio" name="mirror" class="mt-0.5 accent-orange-500">
+                <span class="text-[13px]"><span class="font-medium text-slate-700">清华大学镜像</span><br><span class="text-xs text-slate-400 font-mono">https://pypi.tuna.tsinghua.edu.cn/simple</span></span>
+              </label>
+              <label class="flex items-start gap-2.5 border border-slate-200 rounded-xl px-3.5 py-2.5 cursor-pointer hover:bg-slate-50">
+                <input type="radio" name="mirror" class="mt-0.5 accent-orange-500">
+                <span class="text-[13px]"><span class="font-medium text-slate-700">PyPI 官方源</span><br><span class="text-xs text-slate-400 font-mono">https://pypi.org/simple</span></span>
+              </label>
+            </div>
+
+            <div class="flex justify-end gap-2.5 mt-6">
+              <button onclick="showScreen('env')" class="px-4.5 px-5 py-2.5 rounded-xl text-sm text-slate-500 hover:bg-slate-100">取消</button>
+              <button onclick="startInstall()" class="bg-brand hover:bg-brand-dark text-white px-6 py-2.5 rounded-xl font-semibold text-sm shadow-md shadow-orange-200">安 装</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ⑥ 安装过程 -->
+      <div id="o-installing" class="overlay hidden absolute inset-0 z-40">
+        <div class="absolute inset-0 bg-black/40"></div>
+        <div class="relative z-10 h-full flex items-center justify-center">
+          <div class="w-[520px] bg-white rounded-2xl shadow-2xl p-6 fadein">
+            <h3 class="text-lg font-bold text-slate-800">正在安装 requests…</h3>
+
+            <div class="mt-4 bg-[#14181F] rounded-xl p-4 font-mono text-[12px] leading-relaxed text-slate-300 h-44 overflow-y-auto">
+              <div>Looking in indexes: https://mirrors.aliyun.com/pypi/simple/</div>
+              <div>Collecting requests==2.31.0</div>
+              <div class="text-slate-500">&nbsp;&nbsp;Downloading https://mirrors.aliyun.com/pypi/packages/.../requests-2.31.0-py3-none-any.whl (62 kB)</div>
+              <div>Installing collected packages: requests</div>
+              <div id="installDone" class="hidden">
+                <div class="text-emerald-400">Successfully installed requests-2.31.0</div>
+              </div>
+              <div id="installSpin" class="text-slate-500">▍</div>
+            </div>
+
+            <div id="installOkBar" class="hidden mt-3 flex items-center gap-2 text-[13px] text-emerald-600 bg-emerald-50 rounded-xl px-4 py-2.5">
+              <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.75l6 6 9-13.5"/></svg>
+              安装成功！requests 2.31.0 已加入环境。
+            </div>
+
+            <div class="flex justify-end mt-5">
+              <button id="installFinishBtn" onclick="showScreen('env')" disabled class="bg-brand text-white px-6 py-2.5 rounded-xl font-semibold text-sm shadow-md shadow-orange-200 disabled:opacity-40 disabled:shadow-none">完 成</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ⑧ 重置确认 -->
+      <div id="o-reset" class="overlay hidden absolute inset-0 z-40">
+        <div class="absolute inset-0 bg-black/40"></div>
+        <div class="relative z-10 h-full flex items-center justify-center">
+          <div class="w-[440px] bg-white rounded-2xl shadow-2xl p-6 fadein">
+            <div class="flex items-start gap-4">
+              <div class="w-11 h-11 shrink-0 rounded-full bg-red-100 flex items-center justify-center">
+                <svg viewBox="0 0 24 24" class="w-6 h-6 text-red-500" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+              </div>
+              <div>
+                <h3 class="text-lg font-bold text-slate-800">确定要重置环境吗？</h3>
+                <p class="text-[13px] text-slate-500 mt-1.5 leading-relaxed">此操作将环境恢复到出厂状态，<span class="text-red-500 font-medium">不可撤销</span>：</p>
+              </div>
+            </div>
+
+            <div class="mt-4 bg-slate-50 rounded-xl p-4 text-[13px] space-y-2">
+              <div class="flex gap-2"><span class="text-red-400">✕</span><span class="text-slate-600">移除用户安装的 <b>2</b> 个包：requests、beautifulsoup4</span></div>
+              <div class="flex gap-2"><span class="text-emerald-500">✓</span><span class="text-slate-600">恢复内置 <b>16</b> 个包及 Python 3.9.7 至出厂版本</span></div>
+              <div class="flex gap-2"><span class="text-emerald-500">✓</span><span class="text-slate-600">您的 notebook 文件（工作目录）不受影响</span></div>
+            </div>
+
+            <div class="flex justify-end gap-2.5 mt-6">
+              <button onclick="showScreen('settings')" class="px-5 py-2.5 rounded-xl text-sm text-slate-500 hover:bg-slate-100">取消</button>
+              <button onclick="startReset()" class="bg-red-500 hover:bg-red-600 text-white px-5 py-2.5 rounded-xl font-semibold text-sm shadow-md shadow-red-200">确认重置</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ⑧b 重置中 -->
+      <div id="o-resetting" class="overlay hidden absolute inset-0 z-40">
+        <div class="absolute inset-0 bg-black/40"></div>
+        <div class="relative z-10 h-full flex items-center justify-center">
+          <div class="w-[420px] bg-white rounded-2xl shadow-2xl p-6 fadein">
+            <h3 id="resetTitle" class="text-lg font-bold text-slate-800">正在重置环境…</h3>
+            <div class="mt-5 h-2 rounded-full bg-slate-100 overflow-hidden">
+              <div id="resetBar" class="h-full w-0 rounded-full bg-brand transition-all duration-500"></div>
+            </div>
+            <p id="resetStep" class="text-xs text-slate-400 mt-2.5">正在停止 Notebook 服务…</p>
+
+            <div id="resetOkBar" class="hidden mt-4 flex items-center gap-2 text-[13px] text-emerald-600 bg-emerald-50 rounded-xl px-4 py-2.5">
+              <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.75l6 6 9-13.5"/></svg>
+              重置完成！环境已恢复到出厂状态。
+            </div>
+
+            <div class="flex justify-end mt-5">
+              <button id="resetFinishBtn" onclick="showScreen('home')" disabled class="bg-brand text-white px-6 py-2.5 rounded-xl font-semibold text-sm shadow-md shadow-orange-200 disabled:opacity-40 disabled:shadow-none">完 成</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<footer class="text-center text-xs text-slate-400 pb-10">朱比特和它的朋友们 · 产品原型 · 供需求评审使用</footer>
+
+<script>
+const overlayBase = { install: 'env', installing: 'env', reset: 'settings', resetting: 'settings' };
+const descs = {
+  first:      '① 首次启动：解压内置 Python 环境（一次性，约 1～2 分钟），无需用户任何操作，无需联网。',
+  home:       '② 首页（未启动）：一键启动 Jupyter Notebook；工作目录清晰可见，最近文件快速打开。',
+  'home-run':'③ 首页（运行中）：服务状态一目了然，可手动在浏览器打开或停止服务；token 认证由应用自动处理，用户无感知。',
+  env:        '④ 环境管理：查看 Python 版本与全部依赖版本；区分「内置 / 用户安装」，内置包锁定不可卸载，防呆。',
+  install:    '⑤ 安装新包：只需填包名（版本可选）；安装源默认阿里云镜像，可切换清华 / 官方源。',
+  installing: '⑥ 安装过程：实时显示 pip 安装日志，成功 / 失败结果明确提示，失败时给出原因与建议。',
+  settings:   '⑦ 设置：默认安装源、关于信息；底部红色区域提供「一键重置环境」入口，与常规操作隔离防误触。',
+  reset:      '⑧ 重置确认：二次确认弹窗，明确列出「将移除什么、将恢复什么、文件不受影响」，确认后约 10 秒完成（本地快照恢复，无需联网）。'
+};
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+  document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden'));
+
+  const base = overlayBase[id];
+  if (base) {
+    document.getElementById('s-' + base).classList.remove('hidden');
+    document.getElementById('o-' + id).classList.remove('hidden');
+  } else {
+    document.getElementById('s-' + id).classList.remove('hidden');
+  }
+
+  const sideBase = base || id;
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.screen === sideBase));
+
+  document.querySelectorAll('.proto-btn').forEach(b => b.classList.toggle('active', b.dataset.view === id));
+  document.getElementById('viewDesc').textContent = descs[id] || '';
+  window.scrollTo({ top: 0 });
+}
+
+function startInstall() {
+  showScreen('installing');
+  document.getElementById('installDone').classList.add('hidden');
+  document.getElementById('installOkBar').classList.add('hidden');
+  document.getElementById('installSpin').classList.remove('hidden');
+  document.getElementById('installFinishBtn').disabled = true;
+  setTimeout(() => {
+    document.getElementById('installDone').classList.remove('hidden');
+    document.getElementById('installOkBar').classList.remove('hidden');
+    document.getElementById('installSpin').classList.add('hidden');
+    document.getElementById('installFinishBtn').disabled = false;
+  }, 1800);
+}
+
+function startReset() {
+  showScreen('resetting');
+  const bar = document.getElementById('resetBar');
+  const step = document.getElementById('resetStep');
+  document.getElementById('resetOkBar').classList.add('hidden');
+  document.getElementById('resetFinishBtn').disabled = true;
+  document.getElementById('resetTitle').textContent = '正在重置环境…';
+  const steps = [
+    ['12%', '正在停止 Notebook 服务…'],
+    ['38%', '正在清除当前环境…'],
+    ['72%', '正在恢复出厂环境快照…'],
+    ['100%', '正在校验环境完整性…']
+  ];
+  bar.style.width = '0%';
+  steps.forEach((s, i) => setTimeout(() => { bar.style.width = s[0]; step.textContent = s[1]; }, 500 + i * 900));
+  setTimeout(() => {
+    document.getElementById('resetTitle').textContent = '重置完成';
+    step.textContent = '共耗时 4.2 秒';
+    document.getElementById('resetOkBar').classList.remove('hidden');
+    document.getElementById('resetFinishBtn').disabled = false;
+  }, 500 + steps.length * 900);
+}
+
+document.querySelectorAll('.proto-btn').forEach(b => b.addEventListener('click', () => showScreen(b.dataset.view)));
+showScreen('home');
+</script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+# Repository Guidelines
+
+## 项目结构与模块组织
+
+`app/` 是 Tauri 2 桌面应用。原生 HTML、JavaScript 前端位于 `app/ui/`，Tailwind 源文件为 `app/tailwind.input.css`；Rust 生命周期、依赖管理及 Notebook 命令位于 `app/src-tauri/src/`。正式图标源文件保存在 `app/app-icon.svg`，生成的平台图标位于 `app/src-tauri/icons/`。
+
+`runtime/` 负责生成 Python 3.9.7 运行时快照，存放锁定依赖、DMG 工具和各平台缓存。`test/` 包含运行时、重置、Notebook HTTP、wheel 覆盖率及宿主隔离检查。CI 打包配置位于 `.github/workflows/build.yml`，发布产物输出到 `dist/`。
+
+## 构建、测试与开发命令
+
+- `cd app && npm ci`：安装锁定版本的 Node.js 依赖。
+- `cd app && npm run build`：编译 Tailwind，并生成不含 `mock.js` 的 `dist-ui/`。
+- `cd app && npm run tauri dev`：以开发模式启动桌面应用。
+- `./runtime/build-snapshot.sh macos-arm64`：生成嵌入式运行时；Intel Mac 使用 `macos-x64`。
+- `cd app && npm run tauri -- build --bundles app`：构建当前 macOS `.app`。
+- `./test/scripts/run-validation.sh`：在 `test/work/` 中执行依赖网络的完整运行时验证。
+- `cd app/src-tauri && cargo fmt --check && cargo check`：检查 Rust 格式和编译状态。
+
+Windows NSIS 安装包必须在 Windows 环境或现有 `windows-2022` CI 任务中构建，不要依赖未经支持的 macOS 交叉打包。
+
+## 编码风格与命名约定
+
+JavaScript、HTML 和 CSS 使用两个空格缩进；Rust 以 `rustfmt` 输出为准。JavaScript 使用 `camelCase`，Rust 和 Python 使用 `snake_case`，常量使用 `SCREAMING_SNAKE_CASE`。保留前端现有的 `data-action` 事件委托；内联 `onclick` 会违反 CSP。公共命令、数据契约及不直观的安全边界应添加简洁的中文文档。不要手工修改生成的 `ui/styles.css`、`dist-ui/`、`target/` 或运行时归档。
+
+## 测试规范
+
+项目暂未设置覆盖率门槛，也没有传统单元测试套件。新增检查使用 `test_*.py` 或 `test-*.sh` 命名。运行时变更必须覆盖精确依赖导入、回环地址 Notebook 启动、重置行为及宿主隔离。缓存、日志、临时环境和测试 Notebook 必须保存在 `test/work/` 内。
+
+## 提交与合并请求规范
+
+仓库目前没有提交历史。提交信息采用 Conventional Commits：类型使用英文，主题使用简洁中文，例如 `fix(runtime): 修复重置后的包清单`。合并请求需说明变更范围、已验证平台、执行命令、签名或公证状态，以及尚未完成的真机验证。UI 变更应附截图；不要提交无关生成物或密钥。
+
+## 安全与配置提示
+
+Notebook 必须绑定 `127.0.0.1` 并使用随机令牌。保留 `PYTHONNOUSERSITE`、应用私有的 Jupyter/pip 目录，以及 Notebook 文件与可重置运行时之间的隔离。自动信任 Notebook 属于明确的安全边界，相关改动必须在合并请求中说明。

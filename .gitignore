@@ -1,0 +1,27 @@
+# ===== 系统/编辑器垃圾 =====
+.DS_Store
+**/__pycache__/
+*.pyc
+
+# ===== 前端构建产物（npm/css 可再生） =====
+app/node_modules/
+app/dist-ui/
+app/ui/styles.css
+
+# ===== Rust 构建产物（cargo 可再生） =====
+app/src-tauri/target/
+app/src-tauri/gen/
+app/src-tauri/resources/env-factory.tar.zst
+
+# ===== 快照与缓存（runtime 脚本可再生） =====
+runtime/.cache/
+runtime/snapshots/
+
+# ===== 安装包产物（走 GitHub Release 分发，不入库） =====
+dist/
+
+# ===== 设计迭代稿（本地保留，不入库） =====
+app/icon-concepts/
+
+# ===== 测试临时产物 =====
+test/work/
