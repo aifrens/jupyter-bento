@@ -134,3 +134,7 @@ cd .. && ./runtime/make-dmg.sh "app/src-tauri/target/release/bundle/macos/朱比
 
 **Q：Apple Silicon 上为什么有 4 个包版本不一样？**
 pandas 1.3.4 / scipy 1.7.1 / matplotlib 3.4.3 / scikit-learn 0.24.2 官方没有发布 Apple Silicon 安装包，强行安装会触发源码编译（极易失败）。微调到的版本是 arm64 可用的最邻近版本，API 兼容。
+
+## 许可证
+
+本项目采用 [Apache License 2.0](LICENSE)。内置运行时所包含的 Python 及各第三方依赖包均为其各自许可证下的开源软件。
