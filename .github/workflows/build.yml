@@ -9,6 +9,11 @@ on:
 permissions:
   contents: read
 
+# CI 运行器在美国机房：用 PyPI 官方源（比国内镜像更快更稳）；
+# 本地构建不带此变量则默认阿里云镜像。
+env:
+  JUPITER_PYPI_MIRROR: https://pypi.org/simple
+
 jobs:
   macos-arm64:
     name: macOS Apple Silicon

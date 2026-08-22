@@ -22,7 +22,10 @@ done
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 OUT_DIR="${OUT_ARG:-$ROOT/app/src-tauri/resources}"
-MIRROR="https://mirrors.aliyun.com/pypi/simple/"
+MIRROR="${JUPITER_PYPI_MIRROR:-https://mirrors.aliyun.com/pypi/simple/}"
+# 网络兜底：跨国下载大 wheel 时防 ReadTimeout（CI 在美国机房访问国内镜像时常见）
+export PIP_DEFAULT_TIMEOUT=120
+export PIP_RETRIES=10
 BOOTSTRAP_PYTHON="${BOOTSTRAP_PYTHON:-python3}"
 BOOTSTRAP_VERSION="3.13.5"
 

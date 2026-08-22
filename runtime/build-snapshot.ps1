@@ -12,7 +12,10 @@ $ErrorActionPreference = "Stop"
 # 会让 pip 解析 requirements 等文件时 UnicodeDecodeError；构建期统一 UTF-8。
 $env:PYTHONUTF8 = "1"
 
-$Mirror = "https://mirrors.aliyun.com/pypi/simple/"
+$Mirror = $(if ($env:JUPITER_PYPI_MIRROR) { $env:JUPITER_PYPI_MIRROR } else { "https://mirrors.aliyun.com/pypi/simple/" })
+# 网络兜底：防跨国下载大 wheel 时 ReadTimeout
+$env:PIP_DEFAULT_TIMEOUT = "120"
+$env:PIP_RETRIES = "10"
 $BootstrapVersion = "3.13.5"
 $PbsTag = "20211017"
 $PbsTs  = "20211017T1616"
