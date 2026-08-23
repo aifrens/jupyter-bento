@@ -57,8 +57,12 @@
         </div>
         <div class="text-[10px] text-slate-500 mt-1.5 leading-relaxed">内置 Python <span class="tnum">3.9.7</span><br>与系统环境完全隔离</div>
       </div>
-      <div class="text-[10px] text-slate-600 mt-3 px-1">
+      <div class="text-[10px] text-slate-600 mt-3 px-1 flex items-center gap-2">
         <span id="appVersionLabel" class="hover:text-brand cursor-pointer transition-colors" data-action="openLink" data-arg="https://github.com/aifrens/jupyter-bento" title="查看项目仓库">v—</span>
+        <span id="updateBadge" class="hidden items-center gap-1 text-brand font-medium cursor-pointer hover:text-brand-dark transition-colors" data-action="openUpdate">
+          <span class="w-1.5 h-1.5 rounded-full bg-brand animate-breathe"></span><span id="updateBadgeText">有更新</span>
+        </span>
+        <span id="updateRetry" class="hidden text-slate-500 cursor-pointer hover:text-slate-300 underline decoration-dotted transition-colors" data-action="retryUpdate" title="检查更新失败，点击重试">检查更新失败</span>
       </div>
     </div>
   </aside>
@@ -284,6 +288,18 @@
           <div class="flex justify-end mt-5">
             <button id="installFinishBtn" class="btn-primary !px-7" disabled data-action="finishInstall">完 成</button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 更新提示弹窗 -->
+    <div id="o-update" class="overlay hidden absolute inset-0 z-40">
+      <div class="absolute inset-0 bg-slate-900/45 backdrop-blur-sm animate-fade-in" data-action="closeOverlays"></div>
+      <div class="relative z-10 h-full flex items-center justify-center p-6">
+        <div class="w-[520px] max-w-full bg-white rounded-2xl shadow-2xl p-6 animate-fade-up">
+          <h3 id="updateTitle" class="text-lg font-bold tracking-tight">检查更新</h3>
+          <div id="updateBody" class="mt-4"></div>
+          <div class="flex justify-end gap-2.5 mt-6" id="updateActions"></div>
         </div>
       </div>
     </div>

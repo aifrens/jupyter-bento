@@ -134,6 +134,18 @@ export const backend = {
     if (!inTauri) return Promise.resolve("dev");
     return window.__TAURI__.core.invoke("app_version");
   },
+
+  /** 检查 GitHub 最新正式版 + 热修复清单（网络失败时 reject） */
+  checkUpdates() {
+    if (!inTauri) return mockBackend().checkUpdates();
+    return window.__TAURI__.core.invoke("check_updates");
+  },
+
+  /** 应用指定热修复补丁 */
+  applyPatch(id) {
+    if (!inTauri) return mockBackend().applyPatch(id);
+    return window.__TAURI__.core.invoke("apply_patch", { id });
+  },
 };
 
 /* ================= 诊断上报（仅调试模式输出，生产构建完全静默） ================= */

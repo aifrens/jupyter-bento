@@ -1,0 +1,17 @@
+{
+  "patches": [
+    {
+      "id": "win-realpath-161",
+      "title": "修复 Windows 下 sklearn 导入崩溃",
+      "description": "修复 Python 3.9.7 realpath 对空字符串路径条目生成带尾随点的 verbatim 路径，导致 pkg_resources 在 UNC/本地盘下崩溃（WinError 123/161），sklearn 等库无法导入的问题。",
+      "applies_to": ["1.0.0"],
+      "files": [
+        {
+          "name": "sitecustomize.py",
+          "url": "https://raw.githubusercontent.com/aifrens/jupyter-bento/main/hotfix/win-realpath-161/sitecustomize.py",
+          "sha256": "2ea1ef3f2fc07c31ffc360e1bd17bb36d20d2769d2cfa27f7a7998d4fad96376"
+        }
+      ]
+    }
+  ]
+}

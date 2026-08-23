@@ -59,6 +59,8 @@ window.__JUPITER_MOCK__ = {
   async openNotebookUrl() {
     showToast("预览模式：真实应用中将打开 " + (this.running ? this.running.url : ""), "info");
   },
+  async checkUpdates() { await sleep(300); return { latest_version: null, release_notes: null, release_url: null, patches: [] }; },
+  async applyPatch(id) { await sleep(500); return "模拟补丁 " + id; },
   async openRecentNotebook(id) { showToast("预览模式：真实应用中将打开最近文件 " + id, "info"); },
   async resetEnv(onStage) {
     const stages = [[12, "正在停止 Notebook 服务…"], [38, "正在清除当前环境…"], [72, "正在恢复出厂环境快照…"], [100, "正在校验环境完整性…"]];

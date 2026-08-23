@@ -34,4 +34,8 @@ export const state = {
   envReady: false,
   /** @type {AppSettings} */
   settings: loadSettings(),
+  /** 在线更新信息（null = 无更新） */
+  update: null,
+  /** 当前应用版本（由 app_version 填充） */
+  appVersion: null,
 };

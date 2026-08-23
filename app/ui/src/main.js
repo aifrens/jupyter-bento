@@ -8,6 +8,7 @@ import { initActions } from "./events.js";
 import {
   renderHome, renderRecent, startNotebook, stopNotebook, openInBrowser,
   copyUrl, pickWorkdir, openRecent, openLink,
+  checkUpdatesInBackground, openUpdate, openUpdateDownload, applyUpdates, retryUpdate,
 } from "./pages/home.js";
 import {
   refreshPackages, renderPkgTable, uninstallPkg, openInstall, selectMirror,
@@ -36,6 +37,10 @@ initActions({
   uninstallPkg: el => uninstallPkg(el.dataset.arg),
   openRecent: el => openRecent(el.dataset.recentId),
   openLink: el => openLink(el.dataset.arg),
+  openUpdate: () => openUpdate(),
+  openUpdateDownload: () => openUpdateDownload(),
+  applyUpdates: () => applyUpdates(),
+  retryUpdate: () => retryUpdate(),
 });
 
 /* ================= 启动流程 ================= */
@@ -63,6 +68,7 @@ async function boot() {
     }).catch(() => {});
   }
   backend.appVersion().then(v => {
+    state.appVersion = v;
     for (const id of ["appVersionLabel", "appVersionLabel2"]) {
       const el = document.getElementById(id);
       if (el) el.textContent = "v" + v;
@@ -115,6 +121,8 @@ async function boot() {
   lockNav(false);
   go("home");
   reportDiag("home-shown");
+  // 后台静默检查更新（网络失败不打扰用户）
+  checkUpdatesInBackground();
   if (inTauri) {
     window.__TAURI__.event.listen("notebook-exit", () => {
       state.running = null;
@@ -206,6 +214,22 @@ async function selfTest() {
 
   // 3) Notebook 启停自检：仅调试模式启用（不开浏览器）
   if (inTauri) {
+    // 3b) 在线更新自检：验证 清单→下载→校验→应用→记录 全链路
+    try {
+      const info = await backend.checkUpdates();
+      if (info.patches && info.patches.length) {
+        state.update = info;
+        reportDiag("update-selftest-begin", { patches: info.patches.map(p => p.id) });
+        try {
+          await applyUpdates();
+          reportDiag("update-selftest", { ok: true });
+        } catch (e) {
+          reportDiag("update-selftest", { ok: false, error: String(e) });
+        }
+      }
+    } catch (e) {
+      reportDiag("update-selftest", { error: String(e) });
+    }
     try {
       reportDiag("nb-selftest-begin", { workdir: state.settings.workdir });
       const r = await backend.startNotebook(state.settings.workdir, false);

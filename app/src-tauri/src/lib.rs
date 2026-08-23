@@ -16,6 +16,252 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 const PYTHON_VERSION: &str = "3.9.7";
+
+/* ================= 在线更新（全部走 GitHub，无自建服务） ================= */
+
+/// GitHub 最新正式版（该端点天然排除 alpha/beta 预发布）
+const GITHUB_LATEST_RELEASE: &str =
+    "https://api.github.com/repos/aifrens/jupyter-bento/releases/latest";
+/// 热修复清单（仓库内维护；可用 JUPITER_HOTFIX_URL 覆盖以便本地调试）
+const HOTFIX_MANIFEST_URL: &str =
+    "https://raw.githubusercontent.com/aifrens/jupyter-bento/main/hotfix/manifest.json";
+
+#[derive(Clone, Serialize)]
+struct UpdateInfo {
+    latest_version: Option<String>,
+    release_notes: Option<String>,
+    release_url: Option<String>,
+    patches: Vec<PatchInfo>,
+}
+
+#[derive(Clone, Serialize, serde::Deserialize)]
+struct PatchInfo {
+    id: String,
+    title: String,
+    description: String,
+}
+
+#[derive(serde::Deserialize)]
+struct HotfixManifest {
+    patches: Vec<ManifestPatch>,
+}
+
+#[derive(Clone, serde::Deserialize)]
+struct ManifestPatch {
+    id: String,
+    title: String,
+    description: String,
+    applies_to: Vec<String>,
+    files: Vec<ManifestFile>,
+}
+
+#[derive(Clone, serde::Deserialize)]
+struct ManifestFile {
+    /// env 内 site-packages 下的文件名（目标路径按平台 site-packages 目录解析）
+    name: String,
+    url: String,
+    sha256: String,
+}
+
+#[derive(Clone, Serialize, serde::Deserialize)]
+struct AppliedPatch {
+    sha256: String,
+    applied_at: String,
+}
+
+/// 通过系统 curl 发起 HTTPS 请求（macOS / Win10 1803+ 均自带，零新增依赖）
+fn http_fetch(url: &str) -> Result<String, String> {
+    let out = quiet_command(Path::new("curl"))
+        .args([
+            "-fsSL",
+            "--max-time",
+            "20",
+            "-H",
+            "User-Agent: jupiter-updater",
+            url,
+        ])
+        .output()
+        .map_err(|e| format!("curl 执行失败：{e}"))?;
+    if !out.status.success() {
+        return Err(format!("请求失败（HTTP 状态 {:?}）", out.status.code()));
+    }
+    String::from_utf8(out.stdout).map_err(|e| format!("响应非 UTF-8：{e}"))
+}
+
+fn semver_tuple(v: &str) -> (u32, u32, u32) {
+    let base = v.trim_start_matches('v').split('-').next().unwrap_or("0");
+    let mut it = base.split('.');
+    (
+        it.next().and_then(|s| s.parse().ok()).unwrap_or(0),
+        it.next().and_then(|s| s.parse().ok()).unwrap_or(0),
+        it.next().and_then(|s| s.parse().ok()).unwrap_or(0),
+    )
+}
+
+fn applied_path(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("applied-patches.json"))
+}
+
+fn load_applied(app: &AppHandle) -> std::collections::HashMap<String, AppliedPatch> {
+    applied_path(app)
+        .ok()
+        .and_then(|p| fs::read(p).ok())
+        .and_then(|d| serde_json::from_slice(&d).ok())
+        .unwrap_or_default()
+}
+
+fn save_applied(app: &AppHandle, map: &std::collections::HashMap<String, AppliedPatch>) {
+    if let Ok(p) = applied_path(app) {
+        if let Ok(json) = serde_json::to_vec_pretty(map) {
+            let _ = fs::write(p, json);
+        }
+    }
+}
+
+/// 按平台解析 env 内 site-packages 目录
+fn site_packages_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let env = env_dir(app)?;
+    let unix = env.join("lib").join("python3.9").join("site-packages");
+    if unix.exists() {
+        return Ok(unix);
+    }
+    let win = env.join("Lib").join("site-packages");
+    if win.exists() {
+        return Ok(win);
+    }
+    Err("未找到环境的 site-packages 目录".into())
+}
+
+fn sha256_file(p: &Path) -> Result<String, String> {
+    use sha2::{Digest, Sha256};
+    let data = fs::read(p).map_err(|e| e.to_string())?;
+    Ok(format!("{:x}", Sha256::digest(&data)))
+}
+
+/// 补丁文件在磁盘上是否完整（用户重置/手改后需要重放）
+fn patch_file_intact(app: &AppHandle, patch: &ManifestPatch) -> bool {
+    let sp = match site_packages_dir(app) {
+        Ok(d) => d,
+        Err(_) => return false,
+    };
+    patch.files.iter().all(|f| {
+        let p = sp.join(&f.name);
+        p.exists() && sha256_file(&p).map(|h| h == f.sha256).unwrap_or(false)
+    })
+}
+
+fn hotfix_url() -> String {
+    std::env::var("JUPITER_HOTFIX_URL").unwrap_or_else(|_| HOTFIX_MANIFEST_URL.to_string())
+}
+
+#[tauri::command]
+async fn check_updates(app: AppHandle) -> Result<UpdateInfo, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut info = UpdateInfo {
+            latest_version: None,
+            release_notes: None,
+            release_url: None,
+            patches: vec![],
+        };
+        let current = env!("CARGO_PKG_VERSION");
+
+        // 1) 最新正式版（GitHub latest 端点天然排除 alpha/beta 预发布）
+        if let Ok(body) = http_fetch(GITHUB_LATEST_RELEASE) {
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&body) {
+                let tag = v.get("tag_name").and_then(|s| s.as_str()).unwrap_or("");
+                if semver_tuple(tag) > semver_tuple(current) {
+                    info.latest_version = Some(tag.trim_start_matches('v').to_string());
+                    info.release_notes = v
+                        .get("body")
+                        .and_then(|s| s.as_str())
+                        .map(|s| s.to_string());
+                    info.release_url = v
+                        .get("html_url")
+                        .and_then(|s| s.as_str())
+                        .map(|s| s.to_string());
+                }
+            }
+        }
+
+        // 2) 热修复清单（仓库内维护）
+        if let Ok(body) = http_fetch(&hotfix_url()) {
+            if let Ok(m) = serde_json::from_str::<HotfixManifest>(&body) {
+                let applied = load_applied(&app);
+                for p in m.patches {
+                    if !p.applies_to.iter().any(|v| v == current) {
+                        continue;
+                    }
+                    let already = p
+                        .files
+                        .first()
+                        .map(|f| applied.get(&p.id).map(|a| a.sha256.as_str()) == Some(f.sha256.as_str()))
+                        .unwrap_or(false);
+                    if already && patch_file_intact(&app, &p) {
+                        continue;
+                    }
+                    if patch_file_intact(&app, &p) {
+                        continue; // 磁盘已完好（含快照自带补丁）
+                    }
+                    info.patches.push(PatchInfo {
+                        id: p.id,
+                        title: p.title,
+                        description: p.description,
+                    });
+                }
+            }
+        }
+        Ok(info)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn apply_patch(app: AppHandle, id: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let body = http_fetch(&hotfix_url())?;
+        let m: HotfixManifest = serde_json::from_str(&body).map_err(|e| format!("清单解析失败：{e}"))?;
+        let patch = m
+            .patches
+            .into_iter()
+            .find(|p| p.id == id)
+            .ok_or_else(|| "清单中找不到该补丁".to_string())?;
+        let sp = site_packages_dir(&app)?;
+
+        for f in &patch.files {
+            let content = http_fetch(&f.url)?;
+            let tmp = sp.join(format!(".{}.tmp", f.name));
+            let dest = sp.join(&f.name);
+            fs::write(&tmp, content.as_bytes()).map_err(|e| format!("写入失败：{e}"))?;
+            let hash = sha256_file(&tmp)?;
+            if hash != f.sha256 {
+                let _ = fs::remove_file(&tmp);
+                return Err(format!("{} 校验不符（可能下载损坏），未应用", f.name));
+            }
+            fs::rename(&tmp, &dest).map_err(|e| format!("就位失败：{e}"))?;
+        }
+
+        let mut applied = load_applied(&app);
+        if let Some(f) = patch.files.first() {
+            applied.insert(
+                patch.id.clone(),
+                AppliedPatch {
+                    sha256: f.sha256.clone(),
+                    applied_at: format!("{:?}", std::time::SystemTime::now()),
+                },
+            );
+            save_applied(&app, &applied);
+        }
+        Ok(patch.title)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 const SNAPSHOT_NAME: &str = "env-factory.tar.zst";
 const RECENT_STORE_LIMIT: usize = 20;
 const RECENT_LIST_LIMIT: usize = 5;
@@ -1403,6 +1649,8 @@ pub fn run() {
             open_notebook_url,
             open_recent_notebook,
             open_external_url,
+            check_updates,
+            apply_patch,
             default_workdir,
             ensure_workdir,
             list_recent_notebooks,

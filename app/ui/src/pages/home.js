@@ -206,5 +206,160 @@ export function openLink(url) {
   }
 }
 
+/* ================= 在线更新 ================= */
+
+const SPINNER = '<svg class="w-4 h-4 animate-spin shrink-0" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-opacity="0.25" stroke-width="4"/><path d="M22 12a10 10 0 00-10-10" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>';
+
+/** 后台静默检查更新（网络失败不打扰用户，仅在侧栏留轻量重试入口） */
+export async function checkUpdatesInBackground() {
+  if (!inTauri) return;
+  const retryEl = document.getElementById("updateRetry");
+  try {
+    const info = await backend.checkUpdates();
+    const has = !!info.latest_version || (info.patches && info.patches.length > 0);
+    state.update = has ? info : null;
+    reportDiag("update-check", {
+      latest: info.latest_version || null,
+      patchCount: info.patches ? info.patches.length : 0,
+    });
+    if (retryEl) retryEl.classList.add("hidden");
+    renderUpdateBadge();
+  } catch (e) {
+    reportDiag("update-check-failed", { error: String(e) });
+    if (retryEl) retryEl.classList.remove("hidden");
+  }
+}
+
+function renderUpdateBadge() {
+  const badge = document.getElementById("updateBadge");
+  if (!badge) return;
+  if (state.update) {
+    document.getElementById("updateBadgeText").textContent =
+      state.update.latest_version ? "有新版本" : "有修复";
+    badge.classList.remove("hidden");
+    badge.classList.add("inline-flex");
+  } else {
+    badge.classList.add("hidden");
+    badge.classList.remove("inline-flex");
+  }
+}
+
+export function openUpdate() {
+  renderUpdateDialog();
+  showOverlay("o-update");
+}
+
+function setActions(buttons) {
+  document.getElementById("updateActions").innerHTML = buttons
+    .map(b => `<button class="${b.primary ? "btn-primary" : "btn-ghost"}" data-action="${b.action}">${b.label}</button>`)
+    .join("");
+}
+
+function renderUpdateDialog() {
+  const title = document.getElementById("updateTitle");
+  const body = document.getElementById("updateBody");
+  const info = state.update;
+  if (!info) {
+    title.textContent = "检查更新";
+    body.innerHTML = `<div class="flex items-center gap-2.5 text-[13px] text-slate-500">${SPINNER}正在获取更新信息…</div>`;
+    setActions([{ label: "关闭", action: "closeOverlays", primary: false }]);
+    return;
+  }
+  if (info.latest_version) {
+    title.textContent = `发现新版本 v${info.latest_version}`;
+    body.innerHTML = `
+      <p class="text-[13px] text-slate-500 mb-3">当前版本 v${state.appVersion || "—"}。更新需要下载新版安装包（无法在线热更）：</p>
+      <div class="text-xs font-medium text-slate-400 mb-1.5">更新日志</div>
+      <div id="updateNotes" class="max-h-56 overflow-y-auto bg-slate-50 border border-slate-100 rounded-xl p-4 text-[13px] text-slate-600 whitespace-pre-wrap leading-relaxed"></div>`;
+    body.querySelector("#updateNotes").textContent = info.release_notes || "（无更新日志）";
+    setActions([
+      { label: "稍后", action: "closeOverlays", primary: false },
+      { label: "前往 GitHub 下载", action: "openUpdateDownload", primary: true },
+    ]);
+  } else {
+    title.textContent = "有可用运行时修复";
+    body.innerHTML = `
+      <p class="text-[13px] text-slate-500 mb-3">以下修复可在线应用（体积小，无需下载安装包）：</p>
+      <div class="space-y-2 max-h-56 overflow-y-auto">
+        ${info.patches.map(p => `
+          <div class="bg-slate-50 border border-slate-100 rounded-xl p-3.5">
+            <div class="text-[13px] font-medium text-slate-700">${p.title}</div>
+            <div class="text-xs text-slate-400 mt-1 leading-relaxed">${p.description}</div>
+          </div>`).join("")}
+      </div>`;
+    setActions([
+      { label: "稍后", action: "closeOverlays", primary: false },
+      { label: "立即修复", action: "applyUpdates", primary: true },
+    ]);
+  }
+}
+
+export function openUpdateDownload() {
+  if (state.update && state.update.release_url) {
+    openLink(state.update.release_url);
+  }
+  closeOverlays();
+}
+
+export async function applyUpdates() {
+  const info = state.update;
+  if (!info || !info.patches || !info.patches.length) return;
+  const body = document.getElementById("updateBody");
+  body.innerHTML = `<div class="flex items-center gap-2.5 text-[13px] text-slate-500">${SPINNER}正在下载并应用修复（国内网络可能较慢，请稍候）…</div>`;
+  setActions([]);
+  try {
+    for (const p of info.patches) {
+      await backend.applyPatch(p.id);
+    }
+    showToast("修复完成，已自动应用运行时更新", "info");
+    state.update = null;
+    renderUpdateBadge();
+    closeOverlays();
+  } catch (e) {
+    showToast("修复失败：" + e + "（可稍后重试）", "error");
+    renderUpdateDialog();
+  }
+}
+
+/** 手动重试（网络失败后的用户入口，含加载/错误/成功三态） */
+export async function retryUpdate() {
+  const title = document.getElementById("updateTitle");
+  const body = document.getElementById("updateBody");
+  title.textContent = "正在检查更新…";
+  body.innerHTML = `<div class="flex items-center gap-2.5 text-[13px] text-slate-500">${SPINNER}正在连接 GitHub…</div>`;
+  setActions([]);
+  showOverlay("o-update");
+  try {
+    const info = await backend.checkUpdates();
+    const has = !!info.latest_version || (info.patches && info.patches.length > 0);
+    state.update = has ? info : null;
+    if (has) {
+      renderUpdateBadge();
+      renderUpdateDialog();
+    } else {
+      title.textContent = "已是最新";
+      body.innerHTML = `<p class="text-[13px] text-slate-500">当前已是最新版本，也没有待修复的运行时补丁。</p>`;
+      setActions([{ label: "好的", action: "closeOverlays", primary: true }]);
+    }
+    const retryEl = document.getElementById("updateRetry");
+    if (retryEl) retryEl.classList.add("hidden");
+  } catch (e) {
+    title.textContent = "无法连接 GitHub";
+    body.innerHTML = `
+      <div class="flex items-start gap-3">
+        <div class="w-9 h-9 shrink-0 rounded-full bg-amber-50 flex items-center justify-center text-amber-500">!</div>
+        <div class="text-[13px] text-slate-500 leading-relaxed">
+          检查更新失败（国内网络访问 GitHub 可能受限）。<br>
+          请检查网络/代理后重试，或稍后再试。<br>
+          <span class="text-xs text-slate-400 mt-1 block">${String(e)}</span>
+        </div>
+      </div>`;
+    setActions([
+      { label: "取消", action: "closeOverlays", primary: false },
+      { label: "重试", action: "retryUpdate", primary: true },
+    ]);
+  }
+}
+
 // 路由进入首页时刷新内容
 onEnter("home", renderHome);
