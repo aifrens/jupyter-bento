@@ -3,9 +3,10 @@
 # 用法: bump-version.sh <新版本号>   例如: bump-version.sh 1.1.0
 set -euo pipefail
 
-NEW="${1:?用法: bump-version.sh <新版本号>（如 1.1.0）}"
-if ! [[ "$NEW" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "版本号格式应为 x.y.z（语义化版本），收到: $NEW" >&2
+NEW="${1:?用法: bump-version.sh <新版本号>（如 1.1.0 或 1.1.0-alpha.1）}"
+# 支持语义化预发布后缀：1.1.0 / 1.1.0-alpha.1 / 1.1.0-beta.2 / 1.1.0-rc.1
+if ! [[ "$NEW" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+(\.[0-9]+)?)?$ ]]; then
+  echo "版本号格式应为 x.y.z 或 x.y.z-预发布标识（如 1.1.0-alpha.1），收到: $NEW" >&2
   exit 1
 fi
 
@@ -39,7 +40,7 @@ python3 - "$CARGO_TOML" "$NEW" << 'EOF'
 import re, sys
 p, v = sys.argv[1], sys.argv[2]
 s = open(p).read()
-s2 = re.sub(r'(?m)^version = "[0-9]+\.[0-9]+\.[0-9]+"', f'version = "{v}"', s, count=1)
+s2 = re.sub(r'(?m)^version = "[0-9]+\.[0-9]+\.[0-9]+[^"]*"', f'version = "{v}"', s, count=1)
 if s2 == s:
     sys.exit("Cargo.toml 中未找到 version 行")
 open(p, "w").write(s2)

@@ -98,6 +98,18 @@ fn semver_tuple(v: &str) -> (u32, u32, u32) {
     )
 }
 
+fn is_prerelease(v: &str) -> bool {
+    v.contains('-')
+}
+
+/// 判断远端正式版是否比当前版本更新：
+/// 基线版本更高，或基线相同但当前是预发布（如 1.0.1-alpha.1 < 1.0.1 正式版）
+fn is_newer_release(latest: &str, current: &str) -> bool {
+    let lt = semver_tuple(latest);
+    let ct = semver_tuple(current);
+    lt > ct || (lt == ct && is_prerelease(current) && !is_prerelease(latest))
+}
+
 fn applied_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(app
         .path()
@@ -173,7 +185,7 @@ async fn check_updates(app: AppHandle) -> Result<UpdateInfo, String> {
         if let Ok(body) = http_fetch(GITHUB_LATEST_RELEASE) {
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(&body) {
                 let tag = v.get("tag_name").and_then(|s| s.as_str()).unwrap_or("");
-                if semver_tuple(tag) > semver_tuple(current) {
+                if is_newer_release(tag, current) {
                     info.latest_version = Some(tag.trim_start_matches('v').to_string());
                     info.release_notes = v
                         .get("body")
