@@ -16,7 +16,13 @@ CARGO_TOML="$ROOT/app/src-tauri/Cargo.toml"
 PKG_JSON="$ROOT/app/package.json"
 
 OLD=$(python3 -c "import json; print(json.load(open('$TAURI_CONF'))['version'])")
-[ "$OLD" = "$NEW" ] && { echo "版本已是 $NEW，无需修改"; exit 0; }
+SKIP_EDITS=0
+if [ "$OLD" = "$NEW" ]; then
+  echo "版本已是 $NEW，跳过文件修改，仅同步锁文件"
+  SKIP_EDITS=1
+fi
+
+if [ "$SKIP_EDITS" = "0" ]; then
 
 # 1) 权威源
 python3 - "$TAURI_CONF" "$NEW" << 'EOF'
@@ -48,9 +54,17 @@ d["version"] = v
 json.dump(d, open(p, "w"), indent=2, ensure_ascii=False)
 open(p, "a").write("\n")
 EOF
+fi
 
 echo "版本已升级: $OLD → $NEW"
 echo "  ✓ src-tauri/tauri.conf.json（权威源）"
 echo "  ✓ src-tauri/Cargo.toml"
 echo "  ✓ app/package.json"
+
+# 4) 同步锁文件（保持与版本号一致，避免漂移）
+echo "==> 同步 package-lock.json"
+( cd "$ROOT/app" && npm install --package-lock-only --ignore-scripts -q )
+echo "==> 同步 Cargo.lock"
+( cd "$ROOT/app/src-tauri" && cargo check -q 2>/dev/null || true )
+
 echo "界面版本号由 app_version 命令动态读取，无需手动改 UI。"

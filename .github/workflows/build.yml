@@ -37,7 +37,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: app/src-tauri/resources/env-factory.tar.zst
-          key: factory-snapshot-macos-arm64-v1-${{ hashFiles('runtime/requirements-macos-arm64.lock.txt', 'runtime/build-snapshot.sh') }}
+          key: factory-snapshot-macos-arm64-v1-${{ hashFiles('runtime/requirements-macos-arm64.lock.txt', 'runtime/build-snapshot.sh', 'runtime/sitecustomize.py') }}
       - name: 构建出厂环境快照（Python 3.9.7 + 锁定依赖）
         if: steps.snapshot-cache.outputs.cache-hit != 'true'
         run: ./runtime/build-snapshot.sh macos-arm64
@@ -75,7 +75,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: app/src-tauri/resources/env-factory.tar.zst
-          key: factory-snapshot-macos-x64-v1-${{ hashFiles('runtime/requirements-macos-x64.lock.txt', 'runtime/build-snapshot.sh') }}
+          key: factory-snapshot-macos-x64-v1-${{ hashFiles('runtime/requirements-macos-x64.lock.txt', 'runtime/build-snapshot.sh', 'runtime/sitecustomize.py') }}
       - name: 构建出厂环境快照（Python 3.9.7 + 锁定依赖）
         if: steps.snapshot-cache.outputs.cache-hit != 'true'
         run: ./runtime/build-snapshot.sh macos-x64
@@ -113,7 +113,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: app/src-tauri/resources/env-factory.tar.zst
-          key: factory-snapshot-win-x64-v1-${{ hashFiles('runtime/requirements-win-x64.lock.txt', 'runtime/build-snapshot.ps1') }}
+          key: factory-snapshot-win-x64-v1-${{ hashFiles('runtime/requirements-win-x64.lock.txt', 'runtime/build-snapshot.ps1', 'runtime/sitecustomize.py') }}
       - name: 构建出厂环境快照（Python 3.9.7 + 原始锁定依赖）
         if: steps.snapshot-cache.outputs.cache-hit != 'true'
         shell: pwsh
@@ -162,7 +162,12 @@ jobs:
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           VER="${TAG#v}"
-          gh release create "$TAG" \
+          # 预发布标签（v1.0.1-alpha.1 / -beta / -rc 等含 "-" 的标签）自动标记为 Pre-release
+          PRERELEASE_FLAG=""
+          case "$TAG" in
+            *-*) PRERELEASE_FLAG="--prerelease" ;;
+          esac
+          gh release create "$TAG" $PRERELEASE_FLAG \
             --title "朱比特和它的朋友们 $VER" \
             --generate-notes \
             *.dmg *.exe SHA256SUMS.txt

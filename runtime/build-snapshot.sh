@@ -264,6 +264,9 @@ else
   unset MPLCONFIGDIR
 fi
 
+echo "==> [3.7/4] 内置运行时兼容补丁 sitecustomize.py（修复 Windows realpath 尾随点崩溃）"
+cp "$SCRIPT_DIR/sitecustomize.py" "$SP_DIR/sitecustomize.py"
+
 echo "==> [3.5/4] 生成出厂包清单 factory-manifest.json（应用以此区分 内置/用户安装）"
 if [ "$TARGET" = "win-x64" ]; then
   "$HOSTPY" -m pip list --format=json --path "$SP_DIR" > "$WORK/root/python/install/factory-manifest.json"

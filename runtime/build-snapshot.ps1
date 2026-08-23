@@ -137,6 +137,9 @@ try {
   Assert-NativeCommandSucceeded -Operation "预建 matplotlib 字体缓存" -ExitCode $LASTEXITCODE
   Remove-Item Env:MPLCONFIGDIR -ErrorAction SilentlyContinue
 
+  Write-Host "==> [3.7/4] 内置运行时兼容补丁 sitecustomize.py（修复 Windows realpath 尾随点崩溃）"
+  Copy-Item "$PSScriptRoot\sitecustomize.py" "$Work\root\python\install\Lib\site-packages\sitecustomize.py"
+
   Write-Host "==> [4/4] 压缩出厂快照"
   New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
   Move-Item "$Work\root\python\install" "$Work\python"

@@ -20,6 +20,8 @@
 
 ## 下载安装
 
+从 [GitHub Releases](https://github.com/aifrens/jupyter-bento/releases) 下载对应平台安装包：
+
 | 平台 | 文件 | 说明 |
 |---|---|---|
 | macOS Apple Silicon (M 系列) | `朱比特和它的朋友们_x.x.x_macOS-AppleSilicon.dmg` | 4 个依赖为 arm64 兼容小版本（见下文） |
@@ -45,7 +47,7 @@
 
 ```
 Tauri 2 (Rust + 系统 WebView)
-├── 前端：原生 HTML/JS + Tailwind v4（app/ui/）
+├── 前端：原生 ES Modules + Tailwind v4（app/ui/，无框架、零构建链）
 ├── 后端：Rust 管理环境生命周期（初始化/pip/notebook 进程/重置）
 ├── 内置 Python：python-build-standalone CPython 3.9.7（可重定位发行版）
 └── 出厂快照：env-factory.tar.zst（Python + 全部依赖预装压缩，~165MB）
@@ -64,19 +66,21 @@ Tauri 2 (Rust + 系统 WebView)
 
 ```
 ├── app/                     # Tauri 应用
-│   ├── ui/                  #   前端（index.html / app.js / trap.js）
-│   ├── tailwind.input.css   #   样式源（Tailwind v4，npm run css 构建）
+│   ├── ui/                  #   前端（index.html + trap.js + src/ 原生 ES Modules）
+│   │   └── src/             #     main.js / backend.js / router.js / pages/*.js（无框架、零构建链）
+│   ├── tailwind.input.css   #   样式源（Tailwind v4，npm run build 产出 dist-ui/）
 │   └── src-tauri/           #   Rust 后端（src/lib.rs 为核心逻辑）
 │       └── resources/       #   出厂快照（构建时生成，不入库）
 ├── runtime/                 # 构建链
 │   ├── requirements-*.txt   #   三平台直接依赖清单与完整 wheel 哈希锁
 │   ├── requirements-bootstrap-*.lock.txt # Python 3.13.5 构建工具哈希锁
 │   ├── requirements-dmgbuild.lock.txt    # DMG 工具完整传递依赖哈希锁
-│   ├── build-snapshot.sh    #   快照构建（macOS/Linux，含交叉 Windows）
+│   ├── build-snapshot.sh    #   快照构建（macOS/Linux，含交叉 Windows；支持 --fast）
 │   ├── build-snapshot.ps1   #   快照构建（Windows）
-│   ├── make-dmg.sh          #   带中文指引的 DMG 制作（dmgbuild）
+│   ├── make-dmg.sh          #   带中文指引的 DMG 制作（dmgbuild，支持 @VERSION@ 占位符）
+│   ├── bump-version.sh      #   版本一键升级（tauri.conf.json 为权威源）
 │   └── snapshots/           #   预构建快照缓存
-├── .github/workflows/       # 三平台 CI（macos-14 / macos-13 / windows-2022）
+├── .github/workflows/       # 三平台 CI + 快照缓存 + 打标签自动创建 Release
 ├── dist/                    # 最终安装包
 └── prototype.html           # 已确认的产品原型（交互稿）
 ```
@@ -100,7 +104,7 @@ npm install
 npm run tauri dev
 ```
 
-仅调试界面（mock 后端，不依赖 Rust）：浏览器直接打开 `app/ui/index.html`。
+仅调试界面（mock 后端，不依赖 Rust）：`cd app && npm run preview`，然后浏览器打开 `http://localhost:8080`（ES Modules 需要 http 协议，`file://` 直接打开会被浏览器 CORS 拦截）。
 
 ## 构建安装包
 
@@ -110,12 +114,22 @@ npm run tauri dev
 ./runtime/build-snapshot.sh macos-arm64        # 产出快照到 app/src-tauri/resources/
 cd app && npm ci && npx tauri build --bundles app
 cd .. && ./runtime/make-dmg.sh "app/src-tauri/target/release/bundle/macos/朱比特和它的朋友们.app" \
-        "dist/朱比特和它的朋友们_1.0.0_macOS-AppleSilicon.dmg"
+        "dist/朱比特和它的朋友们_@VERSION@_macOS-AppleSilicon.dmg"   # @VERSION@ 自动取自 tauri.conf.json
 
 # Windows：在 Windows 上运行 runtime\build-snapshot.ps1 后 npx tauri build（产出 NSIS 安装包）
 ```
 
-**推荐：直接用 CI**。推送后进入 Actions → 「构建多平台安装包」→ Run workflow，约 15 分钟后在 Artifacts 下载三个平台安装包（或打 `v*` 标签自动触发）。
+## 版本升级与发布
+
+```bash
+./runtime/bump-version.sh 1.1.0                # 一键同步 tauri.conf.json / Cargo.toml / package.json
+git commit -am "chore(release): v1.1.0"
+git tag v1.1.0 && git push origin main --tags  # CI 自动构建三平台并创建 Release（附件名自动带新版本号）
+```
+
+界面中的版本号（侧栏左下角、设置页）由 `app_version` 命令读取构建产物元数据动态显示，无需手动修改 UI。
+
+**推荐：直接用 CI 发版**。打 `v*` 标签推送即可，Releases 页面自动生成带校验和的下载页；也可在 Actions 手动 Run workflow 仅构建（Artifacts 下载，不发版）。
 
 ## 排障与诊断
 

@@ -9,9 +9,11 @@
 ## 构建、测试与开发命令
 
 - `cd app && npm ci`：安装锁定版本的 Node.js 依赖。
-- `cd app && npm run build`：编译 Tailwind，并生成不含 `mock.js` 的 `dist-ui/`。
+- `cd app && npm run build`：编译 Tailwind，并生成不含 `mock.js` 的 `dist-ui/`（ES Modules）。
+- `cd app && npm run preview`：本地 http 服务预览界面（ES Modules 不支持 file:// 直开）。
 - `cd app && npm run tauri dev`：以开发模式启动桌面应用。
-- `./runtime/build-snapshot.sh macos-arm64`：生成嵌入式运行时；Intel Mac 使用 `macos-x64`。
+- `./runtime/build-snapshot.sh macos-arm64`：生成嵌入式运行时；Intel Mac 使用 `macos-x64`；本地迭代可加 `--fast`（跳过哈希校验、启用缓存，仅限本地）。
+- `./runtime/bump-version.sh 1.1.0`：一键升级版本号（权威源为 `tauri.conf.json`）。
 - `cd app && npm run tauri -- build --bundles app`：构建当前 macOS `.app`。
 - `./test/scripts/run-validation.sh`：在 `test/work/` 中执行依赖网络的完整运行时验证。
 - `cd app/src-tauri && cargo fmt --check && cargo check`：检查 Rust 格式和编译状态。
@@ -28,7 +30,7 @@ JavaScript、HTML 和 CSS 使用两个空格缩进；Rust 以 `rustfmt` 输出�
 
 ## 提交与合并请求规范
 
-仓库目前没有提交历史。提交信息采用 Conventional Commits：类型使用英文，主题使用简洁中文，例如 `fix(runtime): 修复重置后的包清单`。合并请求需说明变更范围、已验证平台、执行命令、签名或公证状态，以及尚未完成的真机验证。UI 变更应附截图；不要提交无关生成物或密钥。
+提交信息采用 Conventional Commits：类型使用英文，主题使用简洁中文，例如 `fix(runtime): 修复重置后的包清单`。合并请求需说明变更范围、已验证平台、执行命令、签名或公证状态，以及尚未完成的真机验证。UI 变更应附截图；不要提交无关生成物或密钥。
 
 ## 安全与配置提示
 
