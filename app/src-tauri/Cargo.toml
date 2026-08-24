@@ -1,6 +1,6 @@
 [package]
 name = "jupiter"
-version = "1.0.1"
+version = "1.1.0"
 description = "朱比特和它的朋友们 - 开箱即用的 Jupyter Notebook 桌面版"
 edition = "2021"
 rust-version = "1.77"
