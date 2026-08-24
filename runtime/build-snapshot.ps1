@@ -140,6 +140,21 @@ try {
   Write-Host "==> [3.7/4] 内置运行时兼容补丁 sitecustomize.py（修复 Windows realpath 尾随点崩溃）"
   Copy-Item "$PSScriptRoot\sitecustomize.py" "$Work\root\python\install\Lib\site-packages\sitecustomize.py"
 
+  Write-Host "==> [3.5/4] 生成出厂包清单 factory-manifest.json（应用以此区分 内置/用户安装）"
+  # 与 build-snapshot.sh 对等的必需步骤：该清单是应用端「内置 vs 用户安装」的
+  # 唯一权威判定依据。缺失时应用静默回退到 16 个核心包清单，其余出厂包全部被
+  # 误判为用户安装（Windows 历史事故），不得省略。
+  $ManifestJson = & $Py -m pip list --format=json --disable-pip-version-check
+  Assert-NativeCommandSucceeded -Operation "生成出厂包清单" -ExitCode $LASTEXITCODE
+  # 用 .NET 写盘而非 PowerShell 重定向：强制 UTF-8 无 BOM，
+  # 避免编码/BOM 差异导致应用端 JSON 解析失败
+  [System.IO.File]::WriteAllText(
+    "$Work\root\python\install\factory-manifest.json",
+    ($ManifestJson -join "`n") + "`n",
+    (New-Object System.Text.UTF8Encoding($false)))
+  & $Py -c "import json,sys; d=json.load(open(sys.argv[1],encoding='utf-8')); assert isinstance(d,list) and len(d)>10, 'manifest too small'; print('factory manifest entries:', len(d))" "$Work\root\python\install\factory-manifest.json"
+  Assert-NativeCommandSucceeded -Operation "校验出厂包清单" -ExitCode $LASTEXITCODE
+
   Write-Host "==> [4/4] 压缩出厂快照"
   New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
   Move-Item "$Work\root\python\install" "$Work\python"

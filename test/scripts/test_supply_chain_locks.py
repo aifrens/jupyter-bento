@@ -127,6 +127,8 @@ class SupplyChainLockTests(unittest.TestCase):
             "导入运行时依赖",
             "预编译运行时字节码",
             "预建 matplotlib 字体缓存",
+            "生成出厂包清单",
+            "校验出厂包清单",
             "压缩出厂快照",
         )
 
@@ -142,6 +144,24 @@ class SupplyChainLockTests(unittest.TestCase):
             powershell.count("Assert-NativeCommandSucceeded -Operation"),
             len(operations),
         )
+
+    def test_factory_manifest_generated_by_every_snapshot_builder(self) -> None:
+        """出厂包清单是应用端「内置 vs 用户安装」的唯一权威判定依据。
+
+        回归保护：build-snapshot.ps1 曾漏掉该步骤，导致 Windows 快照没有清单、
+        应用回退到 16 个核心包清单，其余出厂包全部被误判为用户安装。
+        两个构建脚本必须都生成清单并写进快照树（python/install/ 下）。
+        """
+        shell = (RUNTIME / "build-snapshot.sh").read_text(encoding="utf-8")
+        powershell = (RUNTIME / "build-snapshot.ps1").read_text(encoding="utf-8")
+
+        for label, source in (("sh", shell), ("ps1", powershell)):
+            with self.subTest(script=label):
+                self.assertIn("factory-manifest.json", source)
+                self.assertIn("pip list --format=json", source)
+                self.assertIn("python/install", source.replace("\\", "/"))
+        # PowerShell 重定向会按控制台编码写文本，清单必须显式 UTF-8 无 BOM 写盘
+        self.assertIn("UTF8Encoding($false)", powershell)
 
 
 if __name__ == "__main__":
