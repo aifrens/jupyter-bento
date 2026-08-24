@@ -163,7 +163,7 @@
               <span class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-500 flex items-center justify-center"><svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 4.5v15m7.5-7.5h-15"/></svg></span>
             </div>
             <div id="statUser" class="text-[22px] font-bold tnum mt-1 text-emerald-600">0</div>
-            <div class="text-[11px] text-slate-400">重置环境时将被移除</div>
+            <div id="statUserSub" class="text-[11px] text-slate-400">重置环境时将被移除</div>
           </div>
           <div class="stat-card">
             <div class="flex items-center justify-between">
@@ -175,10 +175,16 @@
           </div>
         </div>
 
-        <!-- 搜索 -->
-        <div class="mt-6 relative">
-          <svg viewBox="0 0 24 24" class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-          <input id="pkgSearch" class="input !pl-11" placeholder="搜索已安装的包…">
+        <!-- 搜索 + 依赖开关 -->
+        <div class="mt-6 flex items-center gap-3">
+          <div class="relative flex-1">
+            <svg viewBox="0 0 24 24" class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input id="pkgSearch" class="input !pl-11" placeholder="搜索已安装的包…">
+          </div>
+          <label class="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer select-none shrink-0 px-1" title="随其他包连带安装的依赖，默认折叠">
+            <input type="checkbox" id="pkgShowDeps" class="accent-brand">
+            显示依赖包（<span id="pkgDepCount" class="tnum">0</span>）
+          </label>
         </div>
 
         <!-- 包列表 -->
@@ -320,7 +326,7 @@
           </div>
 
           <div class="mt-5 bg-slate-50/80 border border-slate-100 rounded-xl p-4 text-[13px] space-y-2.5">
-            <div class="flex gap-2.5"><span class="text-red-400 shrink-0 mt-px">✕</span><span class="text-slate-600">移除用户安装的 <b id="resetUserCount">0</b> 个包<span id="resetUserList" class="text-slate-400"></span></span></div>
+            <div class="flex gap-2.5"><span class="text-red-400 shrink-0 mt-px">✕</span><span class="text-slate-600">移除你安装的 <b id="resetUserCount">0</b> 个包（含依赖共 <b id="resetTotalCount" class="tnum">0</b> 个）<span id="resetUserList" class="text-slate-400"></span></span></div>
             <div class="flex gap-2.5"><span class="text-emerald-500 shrink-0 mt-px">✓</span><span class="text-slate-600">恢复内置 <b class="tnum" id="resetBuiltinCount">16</b> 个包及 Python 3.9.7 至出厂版本</span></div>
             <div class="flex gap-2.5"><span class="text-emerald-500 shrink-0 mt-px">✓</span><span class="text-slate-600">您的 notebook 文件（工作目录）不受影响</span></div>
           </div>
@@ -441,10 +447,12 @@
     <td class="px-3 py-2.5">
       <span data-field="badge-builtin" class="badge bg-slate-100 text-slate-500"><span class="w-1 h-1 rounded-full bg-slate-400"></span>内置</span>
       <span data-field="badge-user" class="badge bg-emerald-50 text-emerald-600"><span class="w-1 h-1 rounded-full bg-emerald-500"></span>用户安装</span>
+      <span data-field="badge-dep" class="badge bg-slate-50 text-slate-400 border border-slate-100"><span class="w-1 h-1 rounded-full bg-slate-300"></span>依赖</span>
     </td>
     <td class="px-6 py-2.5 text-right">
       <span data-field="action-builtin" class="text-slate-300 text-xs">—</span>
       <button data-field="action-user" class="text-xs text-red-400 hover:text-red-600 transition-colors" data-action="uninstallPkg">卸载</button>
+      <span data-field="action-dep" class="text-slate-300 text-xs cursor-help" title="">—</span>
     </td>
   </tr>
 </template>

@@ -15,10 +15,13 @@ const BUILTIN_MOCK = [
 ];
 
 window.__JUPITER_MOCK__ = {
-  packages: BUILTIN_MOCK.map(([name, version]) => ({ name, version, builtin: true }))
+  packages: BUILTIN_MOCK.map(([name, version]) => ({ name, version, source: "builtin", required_by: [] }))
     .concat([
-      { name: "requests", version: "2.31.0", builtin: false },
-      { name: "beautifulsoup4", version: "4.12.2", builtin: false },
+      { name: "requests", version: "2.31.0", source: "explicit", required_by: [] },
+      { name: "beautifulsoup4", version: "4.12.2", source: "explicit", required_by: [] },
+      { name: "urllib3", version: "2.0.7", source: "dependency", required_by: ["requests"] },
+      { name: "certifi", version: "2024.2.2", source: "dependency", required_by: ["requests"] },
+      { name: "soupsieve", version: "2.5", source: "dependency", required_by: ["beautifulsoup4"] },
     ]),
   running: null,
   envReady: true,
@@ -44,10 +47,18 @@ window.__JUPITER_MOCK__ = {
     await sleep(500);
     onLog(`Successfully installed ${spec}`, "ok");
     const [name, version] = spec.includes("==") ? spec.split("==") : [spec, "latest"];
-    if (!this.packages.find(p => p.name === name)) this.packages.push({ name, version, builtin: false });
+    if (!this.packages.find(p => p.name === name)) this.packages.push({ name, version, source: "explicit", required_by: [] });
     return { ok: true };
   },
-  async uninstallPackage(name) { await sleep(300); this.packages = this.packages.filter(p => p.name !== name); },
+  async uninstallPackage(name) {
+    await sleep(300);
+    const p = this.packages.find(p => p.name === name);
+    if (p && p.source === "builtin") throw "内置包不可卸载（重置环境可恢复出厂状态）";
+    if (p && p.required_by && p.required_by.length) {
+      throw `无法卸载 ${name}：${p.required_by.join("、")} 依赖它，卸载会导致这些包不可用。如需移除，请先卸载上述包。`;
+    }
+    this.packages = this.packages.filter(p => p.name !== name);
+  },
   async startNotebook(_workdir, _openBrowser) {
     await sleep(1200);
     this.running = { port: 8888, token: "mock", url: "http://127.0.0.1:8888" };
@@ -65,7 +76,7 @@ window.__JUPITER_MOCK__ = {
   async resetEnv(onStage) {
     const stages = [[12, "正在停止 Notebook 服务…"], [38, "正在清除当前环境…"], [72, "正在恢复出厂环境快照…"], [100, "正在校验环境完整性…"]];
     for (const [p, t] of stages) { onStage(p, t); await sleep(700); }
-    this.packages = this.packages.filter(p => p.builtin);
+    this.packages = this.packages.filter(p => p.source === "builtin");
     this.running = null;
   },
 };

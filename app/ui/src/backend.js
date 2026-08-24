@@ -7,7 +7,9 @@ import { state } from "./state.js";
  * @typedef {Object} Pkg
  * @property {string} name
  * @property {string} version
- * @property {boolean} builtin
+ * @property {"builtin"|"explicit"|"dependency"} source
+ *   builtin=出厂内置（不可卸载）；explicit=用户显式安装；dependency=随依赖连带安装（受卸载保护）
+ * @property {string[]} required_by 当前环境中依赖此包的其他包（「被谁需要」）
  */
 
 /**

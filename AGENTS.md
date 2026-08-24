@@ -35,3 +35,5 @@ JavaScript、HTML 和 CSS 使用两个空格缩进；Rust 以 `rustfmt` 输出�
 ## 安全与配置提示
 
 Notebook 必须绑定 `127.0.0.1` 并使用随机令牌。保留 `PYTHONNOUSERSITE`、应用私有的 Jupyter/pip 目录，以及 Notebook 文件与可重置运行时之间的隔离。自动信任 Notebook 属于明确的安全边界，相关改动必须在合并请求中说明。
+
+包列表的「内置 / 直接安装 / 依赖」三态判定：`env/factory-manifest.json` 是内置的唯一权威依据（`build-snapshot.sh` 与 `build-snapshot.ps1` 必须都生成该清单，ps1 曾漏生成导致 Windows 出厂包被误判为用户安装）；`env/user-packages.json` 记录用户显式安装（随 env 目录整体重置）；其余靠 importlib.metadata 依赖图启发式兜底。包名比较一律使用 PEP 503 规范化，被其他包依赖的包禁止卸载（卸载保护）。

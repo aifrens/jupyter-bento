@@ -18,9 +18,11 @@ export function selectSettingsMirror(url) {
 }
 
 export function openReset() {
-  const user = state.packages.filter(p => !p.builtin);
-  document.getElementById("resetUserCount").textContent = user.length;
-  document.getElementById("resetUserList").textContent = user.length ? "：" + user.map(p => p.name).join("、") : "";
+  const explicit = state.packages.filter(p => p.source === "explicit");
+  const removable = state.packages.filter(p => p.source !== "builtin");
+  document.getElementById("resetUserCount").textContent = explicit.length;
+  document.getElementById("resetTotalCount").textContent = removable.length;
+  document.getElementById("resetUserList").textContent = explicit.length ? "：" + explicit.map(p => p.name).join("、") : "";
   showOverlay("o-reset");
 }
 

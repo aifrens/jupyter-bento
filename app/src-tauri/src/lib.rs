@@ -2,6 +2,7 @@
 //! 管理内置 Python 环境（初始化 / pip / notebook 服务 / 一键重置）
 
 use std::{
+    collections::{HashMap, HashSet},
     fs,
     io::{BufRead, BufReader, Read, Write},
     net::{TcpListener, TcpStream},
@@ -210,7 +211,9 @@ async fn check_updates(app: AppHandle) -> Result<UpdateInfo, String> {
                     let already = p
                         .files
                         .first()
-                        .map(|f| applied.get(&p.id).map(|a| a.sha256.as_str()) == Some(f.sha256.as_str()))
+                        .map(|f| {
+                            applied.get(&p.id).map(|a| a.sha256.as_str()) == Some(f.sha256.as_str())
+                        })
                         .unwrap_or(false);
                     if already && patch_file_intact(&app, &p) {
                         continue;
@@ -236,7 +239,8 @@ async fn check_updates(app: AppHandle) -> Result<UpdateInfo, String> {
 async fn apply_patch(app: AppHandle, id: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let body = http_fetch(&hotfix_url())?;
-        let m: HotfixManifest = serde_json::from_str(&body).map_err(|e| format!("清单解析失败：{e}"))?;
+        let m: HotfixManifest =
+            serde_json::from_str(&body).map_err(|e| format!("清单解析失败：{e}"))?;
         let patch = m
             .patches
             .into_iter()
@@ -379,11 +383,35 @@ struct PipLog {
     kind: String, // "" | "dim" | "ok" | "err"
 }
 
+/// 包来源三态：
+/// builtin = 出厂内置（不可卸载）；explicit = 用户显式安装；
+/// dependency = 作为依赖被连带安装（受卸载保护）。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum PkgSource {
+    Builtin,
+    Explicit,
+    Dependency,
+}
+
+impl PkgSource {
+    /// 列表排序权重：直接安装 → 依赖 → 内置
+    fn rank(self) -> u8 {
+        match self {
+            PkgSource::Explicit => 0,
+            PkgSource::Dependency => 1,
+            PkgSource::Builtin => 2,
+        }
+    }
+}
+
 #[derive(Serialize)]
 pub struct Pkg {
     name: String,
     version: String,
-    builtin: bool,
+    source: PkgSource,
+    /// 当前环境中依赖此包的其他包（显示名），用于「被谁需要」展示与卸载保护
+    required_by: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -785,22 +813,250 @@ fn quiet_command(program: &Path) -> Command {
     cmd
 }
 
+/// PEP 503 规范化包名：小写并把 - _ . 连续分隔符折叠为单个 -。
+/// 这是「内置 / 直接安装 / 依赖」三类判定的唯一比较形式——
+/// 包名形式漂移（Pillow vs pillow、opencv_python vs opencv-python）
+/// 不得影响分类，否则会出现把出厂包误判为用户包的回归。
+fn normalize_pkg_name(name: &str) -> String {
+    let mut out = String::with_capacity(name.len());
+    let mut prev_sep = false;
+    for c in name.trim().chars() {
+        if matches!(c, '-' | '_' | '.') {
+            if !prev_sep {
+                out.push('-');
+            }
+            prev_sep = true;
+        } else {
+            out.push(c.to_ascii_lowercase());
+            prev_sep = false;
+        }
+    }
+    out
+}
+
 /// 出厂包清单（构建快照时生成于 env/factory-manifest.json），
 /// 是「内置 vs 用户安装」的唯一权威判定依据；读取失败时回退到核心锁定清单。
-fn load_builtin_names(env: &Path) -> std::collections::HashSet<String> {
+/// 注意：Windows 快照由 build-snapshot.ps1 生成，必须与 build-snapshot.sh
+/// 一样输出该清单，否则此处静默回退、出厂包被误判为用户安装（历史事故）。
+fn load_builtin_names(env: &Path) -> HashSet<String> {
     let manifest = env.join("factory-manifest.json");
     if let Ok(data) = fs::read(&manifest) {
-        if let Ok(list) = serde_json::from_slice::<Vec<serde_json::Value>>(&data) {
-            let set: std::collections::HashSet<String> = list
+        // 容错 UTF-8 BOM：Windows 工具链（PowerShell 重定向等）可能写入 BOM，
+        // serde_json 不接受 BOM，不能因此让整份清单失效
+        let data: &[u8] = if data.starts_with(b"\xef\xbb\xbf") {
+            &data[3..]
+        } else {
+            &data[..]
+        };
+        if let Ok(list) = serde_json::from_slice::<Vec<serde_json::Value>>(data) {
+            let set: HashSet<String> = list
                 .iter()
-                .filter_map(|v| v.get("name")?.as_str().map(|s| s.to_lowercase()))
+                .filter_map(|v| v.get("name")?.as_str().map(normalize_pkg_name))
                 .collect();
             if !set.is_empty() {
                 return set;
             }
         }
     }
-    BUILTIN.iter().map(|(n, _)| n.to_lowercase()).collect()
+    eprintln!("[WARN] 出厂包清单缺失或损坏，回退到核心锁定清单；内置判定不完整，建议重置环境修复");
+    BUILTIN.iter().map(|(n, _)| normalize_pkg_name(n)).collect()
+}
+
+/* ================= 用户显式安装记录（user-packages.json） ================= */
+
+/// 记录文件名，存放于 env 根目录（与 factory-manifest.json 并列）。
+/// 生命周期与环境目录一致：重置/重解压会整体删除 env，记录自然清空，
+/// 与「重置环境时将被移除」的语义自动保持一致。
+const USER_MANIFEST_NAME: &str = "user-packages.json";
+
+fn load_user_manifest(env: &Path) -> HashSet<String> {
+    fs::read(env.join(USER_MANIFEST_NAME))
+        .ok()
+        .and_then(|d| serde_json::from_slice::<Vec<String>>(&d).ok())
+        .map(|v| v.iter().map(|s| normalize_pkg_name(s)).collect())
+        .unwrap_or_default()
+}
+
+/// 尽力持久化；写盘失败仅丢失「显式安装」标记，依赖图启发式仍可兜底分类
+fn save_user_manifest(env: &Path, set: &HashSet<String>) {
+    let mut names: Vec<&String> = set.iter().collect();
+    names.sort();
+    match serde_json::to_string_pretty(&names) {
+        Ok(data) => {
+            if let Err(e) = fs::write(env.join(USER_MANIFEST_NAME), data) {
+                eprintln!("[WARN] 写入 {USER_MANIFEST_NAME} 失败：{e}");
+            }
+        }
+        Err(e) => eprintln!("[WARN] 序列化 {USER_MANIFEST_NAME} 失败：{e}"),
+    }
+}
+
+/// 从用户输入的安装规格中提取包名头部：
+/// `requests[security]`、`requests>=2`、` Pillow ` → `requests`/`requests`/`Pillow`。
+/// 与探针 NAME_RE 同一规则（[A-Za-z0-9._-] 前缀），否则 pip 能装上的包
+/// 却与安装记录对不上，显式安装会被误判为依赖。
+fn requirement_name_head(spec: &str) -> &str {
+    let trimmed = spec.trim_start();
+    let end = trimmed
+        .find(|c: char| !(c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-')))
+        .unwrap_or(trimmed.len());
+    &trimmed[..end]
+}
+
+fn record_user_package(env: &Path, name: &str) {
+    let head = requirement_name_head(name);
+    if head.is_empty() {
+        return;
+    }
+    let mut set = load_user_manifest(env);
+    set.insert(normalize_pkg_name(head));
+    save_user_manifest(env, &set);
+}
+
+fn unrecord_user_package(env: &Path, name: &str) {
+    let mut set = load_user_manifest(env);
+    if set.remove(&normalize_pkg_name(name)) {
+        save_user_manifest(env, &set);
+    }
+}
+
+/* ================= 环境清单与依赖图 ================= */
+
+/// 一次性读取包列表与依赖关系的 Python 探针。
+/// 用 importlib.metadata 而非 pip list：同一次进程内顺带算出依赖图，
+/// 且 pip list 本身也是基于 importlib.metadata 实现，数据等价。
+/// extra 依赖（extras_require，如 tests/dev）不计入依赖图。
+const INVENTORY_PY: &str = r#"
+import json, re
+from importlib.metadata import distributions
+
+try:
+    from packaging.markers import Marker
+except Exception:
+    Marker = None  # packaging 不在时退化为字符串启发式（保守多留边）
+
+def norm(n):
+    return re.sub(r"[-_.]+", "-", n.strip()).lower()
+
+NAME_RE = re.compile(r"^\s*([A-Za-z0-9._-]+)")
+EXTRA_RE = re.compile(r"extra\s*==")
+
+pkgs, requires, seen = [], {}, set()
+for dist in distributions():
+    name = dist.metadata.get("Name")
+    if not name:
+        continue
+    n = norm(name)
+    if n in seen:
+        continue
+    seen.add(n)
+    pkgs.append({"name": name, "version": dist.version or ""})
+    deps = set()
+    try:
+        reqs = dist.requires
+        # 3.9 为方法、3.12+ 为属性，两种形态都要兼容
+        if callable(reqs):
+            reqs = reqs()
+        reqs = reqs or []
+    except Exception:
+        reqs = []
+    for r in reqs:
+        head, sep, marker = r.partition(";")
+        if sep:
+            if EXTRA_RE.search(marker):
+                continue  # 可选 extra 依赖不参与依赖图
+            if Marker is not None:
+                try:
+                    if not Marker(marker).evaluate():
+                        continue  # 环境标记不适用当前平台（如 sys_platform=='win32'）
+                except Exception:
+                    pass  # 标记解析失败时保守保留该边
+        m = NAME_RE.match(head)
+        if m:
+            deps.add(norm(m.group(1)))
+    deps.discard(n)
+    requires[n] = sorted(deps)
+print(json.dumps({"packages": pkgs, "requires": requires}, ensure_ascii=False))
+"#;
+
+#[derive(serde::Deserialize)]
+struct InventoryPkg {
+    name: String,
+    version: String,
+}
+
+#[derive(serde::Deserialize)]
+struct EnvInventory {
+    packages: Vec<InventoryPkg>,
+    /// 正向依赖边：规范化包名 → 它依赖的规范化包名集合
+    requires: HashMap<String, Vec<String>>,
+}
+
+fn query_env_inventory(py: &Path) -> Result<EnvInventory, String> {
+    let out = quiet_command(py).args(["-c", INVENTORY_PY]).output();
+    let out = out.map_err(|e| format!("无法读取包列表：{e}"))?;
+    if !out.status.success() {
+        return Err("读取环境清单失败，环境可能已损坏，建议使用重置功能".into());
+    }
+    serde_json::from_slice(&out.stdout).map_err(|e| format!("环境清单解析失败：{e}"))
+}
+
+/// 计算 name（规范化名）的已安装反向依赖（显示名，排序），即「被谁需要」。
+fn requirers_of(
+    norm_name: &str,
+    requires: &HashMap<String, Vec<String>>,
+    display: &HashMap<String, String>,
+) -> Vec<String> {
+    let mut list: Vec<String> = requires
+        .iter()
+        .filter(|(k, deps)| k.as_str() != norm_name && deps.iter().any(|d| d == norm_name))
+        .filter_map(|(k, _)| display.get(k).cloned())
+        .collect();
+    list.sort_by_key(|a| a.to_lowercase());
+    list
+}
+
+/// 三态分类的纯判定逻辑（与 IO 分离，便于单测）：
+/// 1. 出厂清单内 → 内置；
+/// 2. 安装记录内，或没有任何已安装包依赖它 → 直接安装
+///    （后者兜底 notebook 内 !pip install 的顶层包；卸载后的残留依赖也会落入此类，
+///    属可接受的启发式误差——保持可见且可卸载，优于误藏误判）；
+/// 3. 其余 → 依赖。
+fn classify_packages(
+    inv: EnvInventory,
+    builtins: &HashSet<String>,
+    recorded: &HashSet<String>,
+) -> Vec<Pkg> {
+    let display: HashMap<String, String> = inv
+        .packages
+        .iter()
+        .map(|p| (normalize_pkg_name(&p.name), p.name.clone()))
+        .collect();
+    let mut out: Vec<Pkg> = inv
+        .packages
+        .into_iter()
+        .map(|p| {
+            let n = normalize_pkg_name(&p.name);
+            let required_by = requirers_of(&n, &inv.requires, &display);
+            let source = if builtins.contains(&n) {
+                PkgSource::Builtin
+            } else if recorded.contains(&n) || required_by.is_empty() {
+                PkgSource::Explicit
+            } else {
+                PkgSource::Dependency
+            };
+            Pkg {
+                name: p.name,
+                version: p.version,
+                source,
+                required_by,
+            }
+        })
+        .collect();
+    out.sort_by(|a, b| {
+        (a.source.rank(), a.name.to_lowercase()).cmp(&(b.source.rank(), b.name.to_lowercase()))
+    });
+    out
 }
 
 /* ================= 快照解压（初始化 & 重置共用） ================= */
@@ -913,42 +1169,11 @@ async fn list_packages(app: AppHandle) -> Result<Vec<Pkg>, String> {
     let env = env_dir(&app)?;
     let py = python_bin(&env);
     let builtins = load_builtin_names(&env);
-    let out = tauri::async_runtime::spawn_blocking(move || {
-        quiet_command(&py)
-            .args([
-                "-m",
-                "pip",
-                "list",
-                "--format=json",
-                "--disable-pip-version-check",
-            ])
-            .output()
-    })
-    .await
-    .map_err(|e| e.to_string())?
-    .map_err(|e| format!("无法读取包列表：{e}"))?;
-    if !out.status.success() {
-        return Err("pip list 执行失败，环境可能已损坏，建议使用重置功能".into());
-    }
-    let raw: Vec<serde_json::Value> =
-        serde_json::from_slice(&out.stdout).map_err(|e| e.to_string())?;
-    let mut pkgs: Vec<Pkg> = raw
-        .iter()
-        .filter_map(|v| {
-            let name = v.get("name")?.as_str()?.to_string();
-            let version = v.get("version")?.as_str()?.to_string();
-            let builtin = builtins.contains(&name.to_lowercase());
-            Some(Pkg {
-                name,
-                version,
-                builtin,
-            })
-        })
-        .collect();
-    pkgs.sort_by(|a, b| {
-        (a.builtin, a.name.to_lowercase()).cmp(&(b.builtin, b.name.to_lowercase()))
-    });
-    Ok(pkgs)
+    let recorded = load_user_manifest(&env);
+    let inv = tauri::async_runtime::spawn_blocking(move || query_env_inventory(&py))
+        .await
+        .map_err(|e| e.to_string())??;
+    Ok(classify_packages(inv, &builtins, &recorded))
 }
 
 #[tauri::command]
@@ -967,7 +1192,7 @@ async fn install_package(
         Some(v) if !v.trim().is_empty() => format!("{}=={}", name.trim(), v.trim()),
         _ => name.trim().to_string(),
     };
-    tauri::async_runtime::spawn_blocking(move || {
+    let result = tauri::async_runtime::spawn_blocking(move || {
         let mut child = quiet_command(&py)
             .args([
                 "-m",
@@ -1040,16 +1265,41 @@ async fn install_package(
         }
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())?;
+    if result.is_ok() {
+        // pip 不保存「谁请求了安装」，显式安装记录只能由应用自行维护
+        record_user_package(&env, &name);
+    }
+    result
 }
 
 #[tauri::command]
 async fn uninstall_package(app: AppHandle, name: String) -> Result<(), String> {
     let env = env_dir(&app)?;
-    if load_builtin_names(&env).contains(&name.to_lowercase()) {
+    if load_builtin_names(&env).contains(&normalize_pkg_name(&name)) {
         return Err("内置包不可卸载（重置环境可恢复出厂状态）".into());
     }
     let py = python_bin(&env);
+    // 卸载保护：被其他已安装包依赖的包不可直接卸载，
+    // 否则用户卸掉 cycler 之类底层依赖会让 matplotlib 静默坏掉
+    let norm = normalize_pkg_name(&name);
+    let py2 = py.clone();
+    let inv = tauri::async_runtime::spawn_blocking(move || query_env_inventory(&py2))
+        .await
+        .map_err(|e| e.to_string())??;
+    let display: HashMap<String, String> = inv
+        .packages
+        .iter()
+        .map(|p| (normalize_pkg_name(&p.name), p.name.clone()))
+        .collect();
+    let requirers = requirers_of(&norm, &inv.requires, &display);
+    if !requirers.is_empty() {
+        return Err(format!(
+            "无法卸载 {name}：{list} 依赖它，卸载会导致这些包不可用。如需移除，请先卸载上述包。",
+            list = requirers.join("、")
+        ));
+    }
+    let pip_name = name.clone();
     let out = tauri::async_runtime::spawn_blocking(move || {
         quiet_command(&py)
             .args([
@@ -1058,7 +1308,7 @@ async fn uninstall_package(app: AppHandle, name: String) -> Result<(), String> {
                 "uninstall",
                 "-y",
                 "--disable-pip-version-check",
-                &name,
+                &pip_name,
             ])
             .output()
     })
@@ -1066,6 +1316,7 @@ async fn uninstall_package(app: AppHandle, name: String) -> Result<(), String> {
     .map_err(|e| e.to_string())?
     .map_err(|e| e.to_string())?;
     if out.status.success() {
+        unrecord_user_package(&env, &name);
         Ok(())
     } else {
         Err(String::from_utf8_lossy(&out.stderr).into_owned())
@@ -1632,6 +1883,135 @@ mod tests {
         assert_eq!(first.len(), 48);
         assert_eq!(second.len(), 48);
         assert_ne!(first, second);
+    }
+
+    /* ---------- 包名规范化与三态分类 ---------- */
+
+    #[test]
+    fn extracts_name_head_from_requirement_spec() {
+        // 用户可能在包名框输入 extras / 版本约束，记录前必须取包名头部
+        assert_eq!(requirement_name_head("requests"), "requests");
+        assert_eq!(requirement_name_head("requests[security]"), "requests");
+        assert_eq!(requirement_name_head("requests>=2"), "requests");
+        assert_eq!(requirement_name_head(" Pillow "), "Pillow");
+        assert_eq!(
+            requirement_name_head("matplotlib-inline==0.1.3"),
+            "matplotlib-inline"
+        );
+        assert_eq!(requirement_name_head("[bad]"), "");
+    }
+
+    #[test]
+    fn normalizes_names_per_pep503() {
+        // 大小写、- _ . 分隔符差异都必须折叠到同一形式，
+        // 否则出厂清单与 pip 元数据对不上时会误判分类（Windows 事故根因之一）
+        assert_eq!(normalize_pkg_name("Pillow"), "pillow");
+        assert_eq!(normalize_pkg_name("opencv_python"), "opencv-python");
+        assert_eq!(normalize_pkg_name("zope.interface"), "zope-interface");
+        assert_eq!(normalize_pkg_name("matplotlib-inline"), "matplotlib-inline");
+        assert_eq!(
+            normalize_pkg_name("Argon2--CFFI__Bindings"),
+            "argon2-cffi-bindings"
+        );
+        assert_eq!(normalize_pkg_name("  requests  "), "requests");
+    }
+
+    fn inventory_fixture() -> EnvInventory {
+        // 场景：notebook（内置，依赖 traitlets）、matplotlib（显式安装，依赖 cycler/pillow）、
+        // cycler（连带依赖）、pillow（显式安装但也被 matplotlib 需要）、
+        // tomli（notebook 内 !pip install，无记录无入边）
+        let packages = [
+            "notebook",
+            "traitlets",
+            "matplotlib",
+            "cycler",
+            "Pillow",
+            "tomli",
+        ]
+        .iter()
+        .map(|n| InventoryPkg {
+            name: n.to_string(),
+            version: "1.0".into(),
+        })
+        .collect();
+        let requires: HashMap<String, Vec<String>> = [
+            ("notebook".to_string(), vec!["traitlets".to_string()]),
+            (
+                "matplotlib".to_string(),
+                vec!["cycler".to_string(), "pillow".to_string()],
+            ),
+        ]
+        .into_iter()
+        .collect();
+        EnvInventory { packages, requires }
+    }
+
+    #[test]
+    fn classifies_builtin_explicit_dependency() {
+        let builtins: HashSet<String> = ["notebook", "traitlets"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        let recorded: HashSet<String> = ["matplotlib", "pillow"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        let pkgs = classify_packages(inventory_fixture(), &builtins, &recorded);
+        let by_name: HashMap<&str, &Pkg> = pkgs.iter().map(|p| (p.name.as_str(), p)).collect();
+
+        assert_eq!(by_name["notebook"].source, PkgSource::Builtin);
+        assert_eq!(by_name["traitlets"].source, PkgSource::Builtin);
+        assert_eq!(by_name["matplotlib"].source, PkgSource::Explicit);
+        assert_eq!(by_name["cycler"].source, PkgSource::Dependency);
+        assert_eq!(
+            by_name["cycler"].required_by,
+            vec!["matplotlib".to_string()]
+        );
+        // 显式安装记录优先于「被别人需要」：用户装过 pillow，即使 matplotlib 依赖它仍是直接安装
+        assert_eq!(by_name["Pillow"].source, PkgSource::Explicit);
+        assert_eq!(
+            by_name["Pillow"].required_by,
+            vec!["matplotlib".to_string()]
+        );
+        // 无记录且无入边（notebook 内 !pip install 的顶层包）→ 启发式归为直接安装
+        assert_eq!(by_name["tomli"].source, PkgSource::Explicit);
+    }
+
+    #[test]
+    fn unrecorded_leaf_falls_back_to_explicit() {
+        // 卸载 matplotlib 后 cycler 变成无入边孤儿：保持可见且可卸载（不误藏）
+        let mut inv = inventory_fixture();
+        inv.packages.retain(|p| p.name != "matplotlib");
+        inv.requires.remove("matplotlib");
+        let builtins = HashSet::new();
+        let recorded = HashSet::new();
+        let pkgs = classify_packages(inv, &builtins, &recorded);
+        let cycler = pkgs.iter().find(|p| p.name == "cycler").unwrap();
+        assert_eq!(cycler.source, PkgSource::Explicit);
+        assert!(cycler.required_by.is_empty());
+    }
+
+    #[test]
+    fn builtin_manifest_tolerates_utf8_bom() {
+        // Windows 工具链可能写出带 BOM 的 JSON，不能让整份清单失效
+        let root = std::env::temp_dir().join(format!("jupiter-manifest-test-{}", gen_token()));
+        fs::create_dir_all(&root).unwrap();
+        let mut data = b"\xef\xbb\xbf".to_vec();
+        data.extend_from_slice(br#"[{"name":"Pillow","version":"8.4.0"}]"#);
+        fs::write(root.join("factory-manifest.json"), data).unwrap();
+        let names = load_builtin_names(&root);
+        assert!(names.contains("pillow"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn missing_manifest_falls_back_to_core_builtin() {
+        let root = std::env::temp_dir().join(format!("jupiter-manifest-test-{}", gen_token()));
+        fs::create_dir_all(&root).unwrap();
+        let names = load_builtin_names(&root);
+        assert_eq!(names.len(), BUILTIN.len());
+        assert!(names.contains("notebook"));
+        fs::remove_dir_all(root).unwrap();
     }
 }
 

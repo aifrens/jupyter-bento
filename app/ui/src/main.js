@@ -12,7 +12,7 @@ import {
 } from "./pages/home.js";
 import {
   refreshPackages, renderPkgTable, uninstallPkg, openInstall, selectMirror,
-  doInstall, finishInstall, MIRRORS,
+  doInstall, finishInstall, MIRRORS, toggleDeps,
 } from "./pages/env.js";
 import { renderSettingsMirror, selectSettingsMirror, openReset, doReset, finishReset } from "./pages/settings.js";
 
@@ -77,6 +77,7 @@ async function boot() {
   reportDiag("boot-start", { inTauri });
   renderSettingsMirror();
   document.getElementById("pkgSearch").addEventListener("input", renderPkgTable);
+  document.getElementById("pkgShowDeps").addEventListener("change", e => toggleDeps(e.target.checked));
   // 工作目录校验：不存在/不可创建/外接卷未挂载时回退默认目录。
   // 注意不写入 localStorage —— 外接盘恢复后下次启动自动用回保存的路径。
   if (inTauri) {
