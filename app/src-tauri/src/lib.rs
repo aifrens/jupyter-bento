@@ -582,6 +582,12 @@ fn normalize_workdir(path: &Path) -> Result<PathBuf, String> {
         .map_err(|e| format!("无法解析工作目录 {}：{e}", path.display()))
 }
 
+/// 将内部规范路径转换为适合界面和设置持久化的工作目录字符串。
+/// Windows 仅在语义等价时移除 `\\?\`；依赖 verbatim 语义的路径保持原样。
+fn workdir_for_display(path: &Path) -> String {
+    dunce::simplified(path).display().to_string()
+}
+
 /// 只接受工作目录内的相对 .ipynb 路径；拒绝根路径、父目录、Windows 前缀和符号链接逃逸。
 fn validate_notebook_path(workdir: &Path, relative: &str) -> Result<(String, PathBuf), String> {
     let normalized = relative.replace('\\', "/");
@@ -1616,7 +1622,7 @@ fn default_workdir(app: AppHandle) -> Result<String, String> {
     let home = app.path().home_dir().map_err(|e| e.to_string())?;
     let dir = home.join("Jupiter").join("notebooks");
     fs::create_dir_all(&dir).map_err(|e| format!("无法创建工作目录：{e}"))?;
-    Ok(normalize_workdir(&dir)?.display().to_string())
+    Ok(workdir_for_display(&normalize_workdir(&dir)?))
 }
 
 /// 校验并返回有效工作目录：
@@ -1634,7 +1640,7 @@ fn ensure_workdir(app: AppHandle, saved: Option<String>) -> Result<String, Strin
         .unwrap_or_else(|| default.clone());
 
     if candidate.is_dir() {
-        return Ok(normalize_workdir(&candidate)?.display().to_string());
+        return Ok(workdir_for_display(&normalize_workdir(&candidate)?));
     }
     // 检测 /Volumes/<卷名>/... 且卷根不存在 → 卷未挂载，直接回退
     let s = candidate.to_string_lossy();
@@ -1642,14 +1648,14 @@ fn ensure_workdir(app: AppHandle, saved: Option<String>) -> Result<String, Strin
         let vol_name = rest.split('/').next().unwrap_or("");
         if !vol_name.is_empty() && !Path::new("/Volumes").join(vol_name).exists() {
             fs::create_dir_all(&default).map_err(|e| format!("无法创建工作目录：{e}"))?;
-            return Ok(normalize_workdir(&default)?.display().to_string());
+            return Ok(workdir_for_display(&normalize_workdir(&default)?));
         }
     }
     match fs::create_dir_all(&candidate) {
-        Ok(_) => Ok(normalize_workdir(&candidate)?.display().to_string()),
+        Ok(_) => Ok(workdir_for_display(&normalize_workdir(&candidate)?)),
         Err(_) => {
             fs::create_dir_all(&default).map_err(|e| format!("无法创建工作目录：{e}"))?;
-            Ok(normalize_workdir(&default)?.display().to_string())
+            Ok(workdir_for_display(&normalize_workdir(&default)?))
         }
     }
 }
@@ -1766,7 +1772,7 @@ async fn pick_directory(app: AppHandle) -> Result<Option<String>, String> {
         .file()
         .set_title("选择工作目录")
         .pick_folder(move |p| {
-            let _ = tx.send(p.and_then(|fp| fp.as_path().map(|pb| pb.display().to_string())));
+            let _ = tx.send(p.and_then(|fp| fp.as_path().map(workdir_for_display)));
         });
     rx.recv().map_err(|e| e.to_string())
 }
@@ -1858,6 +1864,34 @@ mod tests {
             .unwrap_err()
             .starts_with("RECENT_FILE_NOT_FOUND:"));
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn displays_regular_windows_workdir_without_verbatim_prefix() {
+        let (root, _) = fixture();
+        let canonical = normalize_workdir(&root).unwrap();
+        let displayed = workdir_for_display(&canonical);
+        assert!(!displayed.starts_with(r"\\?\"));
+        assert_eq!(PathBuf::from(displayed).canonicalize().unwrap(), canonical);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn preserves_verbatim_prefix_when_windows_path_cannot_be_simplified() {
+        let reserved = Path::new(r"\\?\C:\Users\asus\CON");
+        assert_eq!(
+            workdir_for_display(reserved),
+            reserved.display().to_string()
+        );
+
+        let segment = "a".repeat(130);
+        let long = PathBuf::from(format!(r"\\?\C:\{segment}\{segment}\notebooks"));
+        assert_eq!(workdir_for_display(&long), long.display().to_string());
+
+        let unc = Path::new(r"\\?\UNC\server\share\notebooks");
+        assert_eq!(workdir_for_display(unc), unc.display().to_string());
     }
 
     #[cfg(unix)]

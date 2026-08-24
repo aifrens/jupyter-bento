@@ -23,6 +23,7 @@ zstd = "0.13"
 rand = "0.8"
 urlencoding = "2"
 sha2 = "0.10"
+dunce = "1"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

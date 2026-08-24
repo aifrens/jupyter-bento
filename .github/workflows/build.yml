@@ -160,6 +160,9 @@ jobs:
         run: |
           npm ci
           npx tauri build
+      - name: 运行 Windows Rust 单元测试
+        working-directory: app/src-tauri
+        run: cargo test --locked
       - name: 规范产物文件名（英文全名，避免中文名在浏览器下载时被剥离）
         shell: pwsh
         run: |
