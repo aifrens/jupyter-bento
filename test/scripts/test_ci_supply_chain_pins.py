@@ -14,17 +14,34 @@ WORKFLOW = REPO_ROOT / ".github" / "workflows" / "build.yml"
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
 
 EXPECTED_ACTIONS = {
-    "actions/checkout": ("11d5960a326750d5838078e36cf38b85af677262", "v4.4.0"),
-    "actions/setup-node": ("49933ea5288caeca8642d1e84afbd3f7d6820020", "v4.4.0"),
-    "actions/setup-python": ("ece7cb06caefa5fff74198d8649806c4678c61a1", "v6.3.0"),
+    "actions/checkout": ("3d3c42e5aac5ba805825da76410c181273ba90b1", "v7.0.1"),
+    "actions/setup-node": ("820762786026740c76f36085b0efc47a31fe5020", "v7.0.0"),
+    "actions/setup-python": ("5fda3b95a4ea91299a34e894583c3862153e4b97", "v7.0.0"),
+    "actions/cache": ("55cc8345863c7cc4c66a329aec7e433d2d1c52a9", "v6.1.0"),
     "actions/upload-artifact": (
-        "ea165f8d65b6e75b540449e92b4886f43607fa02",
-        "v4.6.2",
+        "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+        "v7.0.1",
+    ),
+    "actions/download-artifact": (
+        "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+        "v8.0.1",
     ),
     "dtolnay/rust-toolchain": (
         "4360b52568e2003a75bf9bc1d59f33a8e3fc893c",
         "stable (2026-08-05)",
     ),
+}
+
+# 各 Action 在 build.yml 中的使用次数：三平台 job 各一整套，
+# check-release-tag 与 release job 各含一次 checkout，release job 另含一次 download-artifact
+EXPECTED_COUNTS = {
+    "actions/checkout": 5,
+    "actions/setup-node": 3,
+    "actions/setup-python": 3,
+    "actions/cache": 3,
+    "actions/upload-artifact": 3,
+    "actions/download-artifact": 1,
+    "dtolnay/rust-toolchain": 3,
 }
 
 
@@ -33,15 +50,16 @@ class CiSupplyChainPinsTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.workflow = WORKFLOW.read_text(encoding="utf-8")
         cls.uses = re.findall(
-            r"^\s*- uses:\s*([^@\s]+)@([^\s#]+)(?:\s+#\s*(.+))?$",
+            r"^\s*-?\s*uses:\s*([^@\s]+)@([^\s#]+)(?:\s+#\s*(.+))?$",
             cls.workflow,
             flags=re.MULTILINE,
         )
 
     def test_every_action_is_pinned_to_the_expected_commit(self) -> None:
-        self.assertEqual(len(self.uses), 15)
+        self.assertEqual(len(self.uses), sum(EXPECTED_COUNTS.values()))
         counts = Counter(action for action, _revision, _comment in self.uses)
-        self.assertEqual(counts, Counter({action: 3 for action in EXPECTED_ACTIONS}))
+        self.assertEqual(counts, Counter(EXPECTED_COUNTS))
+        self.assertEqual(set(counts), set(EXPECTED_ACTIONS))
 
         for action, revision, comment in self.uses:
             with self.subTest(action=action):
@@ -62,13 +80,14 @@ class CiSupplyChainPinsTest(unittest.TestCase):
             self.workflow,
             r"(?m)^permissions:\n  contents: read\n",
         )
+        # 每个 checkout 的 with 块（其后 1~4 行）都必须显式关闭凭证持久化
         checkout_blocks = re.findall(
-            r"(?ms)^\s*- uses: actions/checkout@[^\n]+\n"
-            r"\s+with:\n"
-            r"\s+persist-credentials: false\s*$",
+            r"(?ms)^\s*- uses: actions/checkout@[^\n]+\n(?:\s+[^\n]*\n){1,4}",
             self.workflow,
         )
-        self.assertEqual(len(checkout_blocks), 3)
+        self.assertEqual(len(checkout_blocks), EXPECTED_COUNTS["actions/checkout"])
+        for block in checkout_blocks:
+            self.assertIn("persist-credentials: false", block)
 
     def test_existing_platform_targets_remain_configured(self) -> None:
         for target in (

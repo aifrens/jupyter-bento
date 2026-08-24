@@ -14,6 +14,7 @@
 - `cd app && npm run tauri dev`：以开发模式启动桌面应用。
 - `./runtime/build-snapshot.sh macos-arm64`：生成嵌入式运行时；Intel Mac 使用 `macos-x64`；本地迭代可加 `--fast`（跳过哈希校验、启用缓存，仅限本地）。
 - `./runtime/bump-version.sh 1.1.0`：一键升级版本号（权威源为 `tauri.conf.json`）。
+- `./runtime/release.sh 1.1.0`：一键发布——bump 版本、提交、推送 main、打 `v*` tag 并推送（tag 推送触发 CI 三平台构建与 GitHub Release）。
 - `cd app && npm run tauri -- build --bundles app`：构建当前 macOS `.app`。
 - `./test/scripts/run-validation.sh`：在 `test/work/` 中执行依赖网络的完整运行时验证。
 - `cd app/src-tauri && cargo fmt --check && cargo check`：检查 Rust 格式和编译状态。
@@ -27,6 +28,12 @@ JavaScript、HTML 和 CSS 使用两个空格缩进；Rust 以 `rustfmt` 输出�
 ## 测试规范
 
 项目暂未设置覆盖率门槛，也没有传统单元测试套件。新增检查使用 `test_*.py` 或 `test-*.sh` 命名。运行时变更必须覆盖精确依赖导入、回环地址 Notebook 启动、重置行为及宿主隔离。缓存、日志、临时环境和测试 Notebook 必须保存在 `test/work/` 内。
+
+## 发布流程
+
+版本号权威源为 `app/src-tauri/tauri.conf.json`，git tag 只作标记。发版统一执行 `./runtime/release.sh <版本号>`（如 `./runtime/release.sh 1.0.1-beta.1`），脚本依次完成：bump-version.sh 同步四个版本文件 → 提交 → 推送 main → 打 `v*` tag → 推送 tag。推送 tag 触发 CI：先校验 tag 与 `tauri.conf.json` 版本一致且 tag 位于 main 分支（不一致立即失败），再三平台构建并自动创建 GitHub Release（tag 含 `-` 时标记 Pre-release）。
+
+**被要求「打 tag / 推送 tag / 发版 / 发布」时，必须执行 `release.sh` 完成整个流程，禁止单独执行 `git tag` 或 `git push origin v*`**——手工打 tag 会跳过版本同步，被 CI 一致性校验拦截，或发出版本号与内容不符的包。
 
 ## 提交与合并请求规范
 
