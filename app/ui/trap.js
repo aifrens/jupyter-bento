@@ -6,12 +6,14 @@ function jupiterFatal(msg) {
     var b = document.getElementById("fatalBanner");
     if (b) {
       b.style.display = "block";
+      // Overlay 标题栏会让 WebView 延伸到窗口顶边，需要避开 macOS 红黄绿按钮。
+      b.classList.toggle("fatal-banner-mac", /Mac OS|macOS|Macintosh/.test(navigator.userAgent));
       b.innerHTML = "";
       var main = document.createElement("div");
-      main.style.fontWeight = "600";
-      main.textContent = "界面出现异常，请重启应用。若反复出现，请联系支持并提供以下信息：";
+      main.className = "fatal-banner-title";
+      main.textContent = "界面出现异常，请重启应用。若反复出现，请前往 GitHub 提交 Issue（https://github.com/aifrens/jupyter-bento/issues/new），并附上以下信息：";
       var detail = document.createElement("div");
-      detail.style.cssText = "opacity:.8;font-size:12px;margin-top:2px;font-family:ui-monospace,monospace;word-break:break-all;";
+      detail.className = "fatal-banner-detail";
       detail.textContent = String(msg);
       b.appendChild(main);
       b.appendChild(detail);

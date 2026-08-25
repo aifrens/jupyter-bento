@@ -10,8 +10,8 @@
 
 <div id="app" class="flex h-screen">
 
-  <!-- 调试横幅：仅当 JS 异常时显示（默认隐藏） -->
-  <div id="fatalBanner" style="display:none;position:fixed;left:0;right:0;top:0;z-index:9999;background:#DC2626;color:#fff;font:13px/1.6 -apple-system,sans-serif;padding:10px 16px;"></div>
+  <!-- 致命错误横幅：macOS Overlay 标题栏的按钮安全区由 trap.js 按平台启用 -->
+  <div id="fatalBanner" class="fatal-banner" role="alert" aria-live="assertive" aria-atomic="true"></div>
 
   <noscript><div style="position:fixed;inset:0;background:#FBFAF8;color:#333;padding:40px;font:14px sans-serif;">JavaScript 未执行，请检查应用完整性。</div></noscript>
 

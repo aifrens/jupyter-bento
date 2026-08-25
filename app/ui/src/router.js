@@ -1,6 +1,6 @@
 /** 页面路由：屏幕切换、弹窗层、初始化导航锁 */
 
-const overlayIds = ["o-install", "o-installing", "o-reset", "o-resetting"];
+const overlayIds = ["o-install", "o-installing", "o-reset", "o-resetting", "o-update"];
 
 let navLocked = false;
 

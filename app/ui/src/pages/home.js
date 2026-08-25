@@ -3,7 +3,7 @@ import { backend, reportDiag, inTauri } from "../backend.js";
 import { state, saveSettings } from "../state.js";
 import { showToast } from "../toast.js";
 import { fmtAgo, tpl } from "../util.js";
-import { onEnter } from "../router.js";
+import { closeOverlays, onEnter, showOverlay } from "../router.js";
 
 // 首页内容区使用"行星砖"方案 2 图标；左侧导航图标保持 index.html 原样。
 const HOME_ICON_SRC = {
